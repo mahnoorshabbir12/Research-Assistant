@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, Sparkles, Loader2, ChevronDown, BrainCircuit, Layers } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Loader2, ChevronDown, BrainCircuit, Layers, Paperclip, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import QuizWidget from './QuizWidget';
 import FlashcardWidget from './FlashcardWidget';
+import DocumentWidget from './DocumentWidget';
 
 const ChatBox = () => {
   const [messages, setMessages] = useState([]);
@@ -12,7 +13,10 @@ const ChatBox = () => {
   const [persona, setPersona] = useState('researcher');
   const [userName, setUserName] = useState('User');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState(null);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const handleGenerateStructured = async (type) => {
     if (isLoading || messages.length === 0) return;
@@ -63,8 +67,16 @@ const ChatBox = () => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    const userMessage = { role: 'user', content: input };
-    const newMessages = [...messages, userMessage];
+    const newMessages = [...messages];
+    
+    if (pendingAttachment) {
+      newMessages.push({ role: 'user', type: 'document', data: pendingAttachment });
+      setPendingAttachment(null);
+    }
+    
+    if (input.trim()) {
+      newMessages.push({ role: 'user', content: input });
+    }
     
     setMessages(newMessages);
     setInput('');
@@ -115,6 +127,48 @@ const ChatBox = () => {
       ]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset file input so same file can be uploaded again if needed
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
+    setIsUploading(true);
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', type: 'loading', content: `Uploading ${file.name}...` }
+    ]);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('http://localhost:8000/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error('Upload failed');
+      const data = await response.json();
+
+      setPendingAttachment(data);
+      
+      // Remove the loading message
+      setMessages((prev) => prev.slice(0, -1));
+    } catch (error) {
+      console.error('Upload Error:', error);
+      setMessages((prev) => [
+        ...prev.slice(0, -1),
+        { role: 'assistant', type: 'error', content: `Failed to process document.` }
+      ]);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -245,6 +299,7 @@ const ChatBox = () => {
                     <div className="w-full">
                       {msg.type === 'quiz' && <QuizWidget quizData={msg.data} />}
                       {msg.type === 'flashcards' && <FlashcardWidget deckData={msg.data} />}
+                      {msg.type === 'document' && <DocumentWidget docData={msg.data} />}
                     </div>
                   ) : (
                     <div className={`max-w-[85%] px-6 py-4 rounded-3xl text-[15px] leading-relaxed shadow-sm ${
@@ -297,23 +352,67 @@ const ChatBox = () => {
             >
               <Layers className="w-3.5 h-3.5" /> Generate Flashcards
             </button>
+            </button>
           </div>
 
+          {/* Pending Attachment Chip */}
+          <AnimatePresence>
+            {pendingAttachment && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                className="flex items-center gap-3 bg-white/80 dark:bg-black/40 backdrop-blur-md border border-dusty-grape/20 dark:border-white/10 rounded-xl p-2.5 shadow-sm max-w-sm"
+              >
+                <div className="p-2 bg-space-indigo/10 dark:bg-white/10 rounded-lg text-space-indigo dark:text-parchment">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-space-indigo dark:text-parchment truncate">
+                    {pendingAttachment.metadata.filename}
+                  </p>
+                  <p className="text-xs text-dusty-grape dark:text-lilac-ash">
+                    {(pendingAttachment.metadata.character_count / 1000).toFixed(1)}k chars
+                  </p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setPendingAttachment(null)}
+                  className="p-1.5 hover:bg-dusty-grape/10 dark:hover:bg-white/10 rounded-md text-dusty-grape dark:text-parchment/70 transition-colors"
+                >
+                  <span className="text-xs font-bold leading-none">✕</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <form onSubmit={handleSendMessage} className="relative flex items-center group">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-dusty-grape/40 dark:text-parchment/30">
-               <Sparkles className="w-5 h-5" />
-            </div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              className="hidden"
+              accept=".pdf,.docx,.txt"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading || isUploading}
+              className="absolute left-3 p-2 text-dusty-grape/40 hover:text-space-indigo dark:text-parchment/30 dark:hover:text-parchment transition-colors z-10 disabled:opacity-50"
+            >
+              <Paperclip className="w-5 h-5" />
+            </button>
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask anything..."
-              disabled={isLoading}
-              className="w-full pl-12 pr-16 py-4 rounded-2xl border border-dusty-grape/20 dark:border-white/10 bg-transparent dark:bg-black/20 text-space-indigo dark:text-parchment placeholder-dusty-grape/50 dark:placeholder-parchment/40 focus:outline-none focus:ring-2 focus:ring-space-indigo/30 dark:focus:ring-parchment/20 focus:border-transparent text-[15px] transition-all disabled:opacity-50"
+              placeholder="Ask anything or attach a document..."
+              disabled={isLoading || isUploading}
+              className="w-full pl-12 pr-16 py-4 rounded-2xl border border-dusty-grape/20 dark:border-white/10 bg-white/50 dark:bg-black/40 backdrop-blur-sm text-space-indigo dark:text-parchment placeholder-dusty-grape/50 dark:placeholder-parchment/40 focus:outline-none focus:ring-2 focus:ring-space-indigo/30 dark:focus:ring-parchment/20 focus:border-transparent text-[15px] transition-all shadow-sm disabled:opacity-50"
             />
             <button
               type="submit"
-              disabled={isLoading || !input.trim()}
+              disabled={isLoading || isUploading || (!input.trim() && !pendingAttachment)}
               className="absolute right-2 p-2.5 bg-space-indigo dark:bg-parchment text-parchment dark:text-space-indigo rounded-xl hover:bg-space-indigo/90 dark:hover:bg-parchment/90 active:scale-95 focus:outline-none disabled:opacity-30 disabled:hover:scale-100 transition-all shadow-sm"
             >
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 ml-0.5" />}

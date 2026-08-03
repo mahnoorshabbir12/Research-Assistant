@@ -6,3 +6,5 @@ chromadb
 python-dotenv
 pydantic
 python-multipart
+pypdf
+docx2txt

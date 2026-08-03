@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, Sparkles, Loader2, ChevronDown } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Loader2, ChevronDown, BrainCircuit, Layers } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import QuizWidget from './QuizWidget';
+import FlashcardWidget from './FlashcardWidget';
 
 const ChatBox = () => {
   const [messages, setMessages] = useState([]);
@@ -10,6 +13,43 @@ const ChatBox = () => {
   const [userName, setUserName] = useState('User');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const messagesEndRef = useRef(null);
+
+  const handleGenerateStructured = async (type) => {
+    if (isLoading || messages.length === 0) return;
+    setIsLoading(true);
+
+    try {
+      setMessages((prev) => [...prev, { role: 'assistant', type: 'loading', content: `Generating ${type}...` }]);
+      const endpoint = type === 'quiz' ? '/api/generate/quiz' : '/api/generate/flashcards';
+      
+      const response = await fetch(`http://localhost:8000${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: messages.filter(m => !m.type), // Only send real chat history
+          temperature: 0.3,
+          persona: persona,
+          user_name: userName,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Generation failed');
+      const data = await response.json();
+
+      setMessages((prev) => [
+        ...prev.slice(0, -1),
+        { role: 'assistant', type: type, data: data }
+      ]);
+    } catch (error) {
+      console.error(error);
+      setMessages((prev) => [
+        ...prev.slice(0, -1),
+        { role: 'assistant', type: 'error', content: `Failed to generate ${type}.` }
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -79,13 +119,13 @@ const ChatBox = () => {
   };
 
   return (
-    <div className="flex flex-col h-[90vh] w-full max-w-5xl mx-auto p-4 md:p-6 font-sans">
+    <div className="flex flex-col h-full w-full font-sans bg-transparent">
       
-      {/* Header / Navbar */}
+      {/* Header / Navbar - Full Width */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row items-center justify-between w-full mb-6 gap-4 relative z-20"
+        className="flex flex-col md:flex-row items-center justify-between w-full px-6 py-4 border-b border-dusty-grape/10 dark:border-white/5 bg-white/40 dark:bg-black/20 backdrop-blur-xl relative z-20 flex-shrink-0"
       >
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-space-indigo text-parchment rounded-xl shadow-lg shadow-space-indigo/20">
@@ -163,15 +203,11 @@ const ChatBox = () => {
         </div>
       </motion.div>
 
-      {/* Main Chat Container */}
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.1 }}
-        className="flex-1 bg-white dark:bg-[#1a1b2a] rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.6)] border border-dusty-grape/15 dark:border-white/10 overflow-hidden flex flex-col min-h-0 relative z-10"
-      >
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 scroll-smooth">
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col min-h-0 relative z-10 w-full">
+        {/* Messages Scroll Area */}
+        <div className="flex-1 overflow-y-auto scroll-smooth w-full">
+          <div className="max-w-4xl mx-auto p-6 md:p-8 space-y-8 pb-40">
           <AnimatePresence>
             {messages.length === 0 ? (
               <motion.div 
@@ -204,53 +240,91 @@ const ChatBox = () => {
                     {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
                   </div>
 
-                  {/* Message Bubble */}
-                  <div className={`max-w-[75%] px-6 py-4 rounded-3xl text-[15px] leading-relaxed shadow-sm ${
-                    msg.role === 'user'
-                      ? 'bg-space-indigo text-parchment rounded-tr-sm'
-                      : 'bg-white dark:bg-space-indigo/40 text-space-indigo dark:text-parchment rounded-tl-sm border border-parchment/60 dark:border-white/5'
-                  }`}>
-                    {msg.content === '' && isLoading && idx === messages.length - 1 ? (
-                      <div className="flex items-center gap-1.5 h-6">
-                        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 rounded-full bg-dusty-grape/50" />
-                        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 rounded-full bg-dusty-grape/50" />
-                        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 rounded-full bg-dusty-grape/50" />
-                      </div>
-                    ) : (
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
-                    )}
-                  </div>
+                  {/* Message Bubble or Widget */}
+                  {msg.type && msg.type !== 'loading' && msg.type !== 'error' ? (
+                    <div className="w-full">
+                      {msg.type === 'quiz' && <QuizWidget quizData={msg.data} />}
+                      {msg.type === 'flashcards' && <FlashcardWidget deckData={msg.data} />}
+                    </div>
+                  ) : (
+                    <div className={`max-w-[85%] px-6 py-4 rounded-3xl text-[15px] leading-relaxed shadow-sm ${
+                      msg.role === 'user'
+                        ? 'bg-space-indigo text-parchment rounded-tr-sm'
+                        : 'bg-white dark:bg-space-indigo/40 text-space-indigo dark:text-parchment rounded-tl-sm border border-parchment/60 dark:border-white/5'
+                    }`}>
+                      {msg.content === '' && isLoading && idx === messages.length - 1 ? (
+                        <div className="flex items-center gap-1.5 h-6">
+                          <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 rounded-full bg-dusty-grape/50" />
+                          <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 rounded-full bg-dusty-grape/50" />
+                          <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 rounded-full bg-dusty-grape/50" />
+                        </div>
+                      ) : msg.type === 'loading' ? (
+                        <div className="flex items-center gap-3 h-6 text-dusty-grape dark:text-lilac-ash font-medium">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          {msg.content}
+                        </div>
+                      ) : (
+                        <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-space-indigo/5 dark:prose-pre:bg-white/5">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               ))
             )}
           </AnimatePresence>
           <div ref={messagesEndRef} />
+          </div>
         </div>
         
-        {/* Input Area */}
-        <div className="p-4 md:p-6 bg-parchment/30 dark:bg-black/20 border-t border-dusty-grape/10 dark:border-white/5">
-          <form onSubmit={handleSendMessage} className="relative flex items-center">
+        {/* Input Area (Claude Style Floating Bottom) */}
+        <div className="w-full absolute bottom-0 left-0 bg-gradient-to-t from-parchment via-parchment/90 to-transparent dark:from-space-indigo dark:via-space-indigo/90 pointer-events-none pb-6 pt-24 z-20">
+          <div className="max-w-4xl mx-auto px-4 md:px-8 flex flex-col gap-3 pointer-events-auto">
+          {/* Action Buttons */}
+          <div className="flex gap-2 justify-center md:justify-start -mt-2">
+            <button
+              onClick={() => handleGenerateStructured('quiz')}
+              disabled={isLoading || messages.length === 0}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-space-indigo/5 dark:bg-white/5 border border-dusty-grape/10 dark:border-white/10 hover:bg-space-indigo/10 dark:hover:bg-white/10 text-space-indigo/80 dark:text-parchment/80 text-xs font-semibold transition-all disabled:opacity-50"
+            >
+              <BrainCircuit className="w-3.5 h-3.5" /> Generate Quiz
+            </button>
+            <button
+              onClick={() => handleGenerateStructured('flashcards')}
+              disabled={isLoading || messages.length === 0}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-space-indigo/5 dark:bg-white/5 border border-dusty-grape/10 dark:border-white/10 hover:bg-space-indigo/10 dark:hover:bg-white/10 text-space-indigo/80 dark:text-parchment/80 text-xs font-semibold transition-all disabled:opacity-50"
+            >
+              <Layers className="w-3.5 h-3.5" /> Generate Flashcards
+            </button>
+          </div>
+
+          <form onSubmit={handleSendMessage} className="relative flex items-center group">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-dusty-grape/40 dark:text-parchment/30">
+               <Sparkles className="w-5 h-5" />
+            </div>
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask anything..."
               disabled={isLoading}
-              className="w-full pl-6 pr-16 py-5 rounded-2xl border-none bg-parchment/50 dark:bg-space-indigo text-space-indigo dark:text-parchment placeholder-dusty-grape/60 focus:outline-none focus:ring-2 focus:ring-space-indigo/20 shadow-inner text-base transition-all disabled:opacity-50"
+              className="w-full pl-12 pr-16 py-4 rounded-2xl border border-dusty-grape/20 dark:border-white/10 bg-transparent dark:bg-black/20 text-space-indigo dark:text-parchment placeholder-dusty-grape/50 dark:placeholder-parchment/40 focus:outline-none focus:ring-2 focus:ring-space-indigo/30 dark:focus:ring-parchment/20 focus:border-transparent text-[15px] transition-all disabled:opacity-50"
             />
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="absolute right-2 p-3 bg-space-indigo text-parchment rounded-xl hover:bg-space-indigo/90 hover:scale-105 active:scale-95 focus:outline-none disabled:opacity-50 disabled:hover:scale-100 transition-all shadow-md"
+              className="absolute right-2 p-2.5 bg-space-indigo dark:bg-parchment text-parchment dark:text-space-indigo rounded-xl hover:bg-space-indigo/90 dark:hover:bg-parchment/90 active:scale-95 focus:outline-none disabled:opacity-30 disabled:hover:scale-100 transition-all shadow-sm"
             >
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 ml-0.5" />}
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 ml-0.5" />}
             </button>
           </form>
-          <p className="text-center text-xs text-dusty-grape/60 mt-3 font-medium">
+          <p className="text-center text-[11px] text-dusty-grape/50 dark:text-parchment/40 font-medium">
             Powered by LangChain & Gemini
           </p>
+          </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from app.models.chat import ChatRequest
-from app.services.llm_service import generate_chat_stream
+from app.services.llm_service import generate_chat_stream, generate_quiz_from_history, generate_flashcards_from_history
 
 app = FastAPI(
     title="AI Research Assistant API",
@@ -33,3 +33,13 @@ async def chat_endpoint(request: ChatRequest):
         generate_chat_stream(request), 
         media_type="text/event-stream"
     )
+
+@app.post("/api/generate/quiz")
+async def quiz_endpoint(request: ChatRequest):
+    quiz = await generate_quiz_from_history(request)
+    return quiz
+
+@app.post("/api/generate/flashcards")
+async def flashcards_endpoint(request: ChatRequest):
+    flashcards = await generate_flashcards_from_history(request)
+    return flashcards

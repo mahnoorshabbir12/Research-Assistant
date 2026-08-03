@@ -4,7 +4,7 @@ import './index.css';
 
 function App() {
   return (
-    <div className="min-h-screen w-full flex justify-center items-center overflow-hidden">
+    <div className="h-screen w-full flex flex-col overflow-hidden">
       <ChatBox />
     </div>
   );

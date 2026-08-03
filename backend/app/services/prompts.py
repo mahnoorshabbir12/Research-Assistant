@@ -71,3 +71,34 @@ PROMPTS = {
 def get_prompt_for_persona(persona: str) -> ChatPromptTemplate:
     # Default to researcher if persona is unknown
     return PROMPTS.get(persona, PROMPTS["researcher"])
+
+# ==========================================
+# Structured Output Prompts (Milestone 3)
+# ==========================================
+
+quiz_system_prompt = """You are an expert educator.
+Based on the following conversation history, generate a highly engaging and educational multiple-choice quiz.
+The quiz should test the user's understanding of the key concepts discussed.
+You MUST format your output according to the instructions below.
+{format_instructions}
+"""
+
+quiz_prompt = ChatPromptTemplate.from_messages([
+    SystemMessagePromptTemplate.from_template(quiz_system_prompt),
+    MessagesPlaceholder(variable_name="messages"),
+    HumanMessagePromptTemplate.from_template("Based on the conversation above, please generate the multiple-choice quiz now. You MUST output ONLY valid JSON following the schema. Do not include any conversational text.")
+])
+
+
+flashcard_system_prompt = """You are an expert study guide creator.
+Based on the following conversation history, extract the key terms, definitions, and concepts to create a deck of flashcards.
+Create 3 to 5 flashcards that summarize the most important points.
+You MUST format your output according to the instructions below.
+{format_instructions}
+"""
+
+flashcard_prompt = ChatPromptTemplate.from_messages([
+    SystemMessagePromptTemplate.from_template(flashcard_system_prompt),
+    MessagesPlaceholder(variable_name="messages"),
+    HumanMessagePromptTemplate.from_template("Based on the conversation above, please generate the flashcards now. You MUST output ONLY valid JSON following the schema. Do not include any conversational text.")
+])

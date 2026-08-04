@@ -6,23 +6,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from app.models.chat import ChatRequest
 from app.models.chunking import ChunkRequest
-from app.models.embedding import EmbedRequest, SimilarityRequest
+from app.models.embedding import EmbedRequest, SimilarityRequest, IngestRequest, KnowledgeSearchRequest
 from app.services.llm_service import generate_chat_stream, generate_quiz_from_history, generate_flashcards_from_history
 from app.services.document_service import process_uploaded_file
 from app.services.chunking_service import chunk_document
-from app.services.embedding_service import embed_chunks, find_similar_chunks
+from app.services.embedding_service import embed_chunks, find_similar_chunks, ingest_to_knowledge_base, search_knowledge_base
 
-# Trigger reload
 app = FastAPI(
     title="AI Research Assistant API",
     description="Backend API for the AI Research Assistant",
-    version="1.0.0",
+    version="1.0.0"
 )
 
-# Configure CORS for frontend access
+# Allow CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust this in production to the frontend's origin
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -38,20 +37,29 @@ def health_check():
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    return StreamingResponse(
-        generate_chat_stream(request), 
-        media_type="text/event-stream"
-    )
+    try:
+        return StreamingResponse(
+            generate_chat_stream(request),
+            media_type="text/event-stream"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/generate/quiz")
-async def quiz_endpoint(request: ChatRequest):
-    quiz = await generate_quiz_from_history(request)
-    return quiz
+async def generate_quiz_endpoint(request: ChatRequest):
+    try:
+        quiz = await generate_quiz_from_history(request)
+        return quiz
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/generate/flashcards")
-async def flashcards_endpoint(request: ChatRequest):
-    flashcards = await generate_flashcards_from_history(request)
-    return flashcards
+async def generate_flashcards_endpoint(request: ChatRequest):
+    try:
+        deck = await generate_flashcards_from_history(request)
+        return deck
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)):
@@ -108,3 +116,26 @@ async def similarity_endpoint(request: SimilarityRequest):
         return {"similar_chunks": similar_chunks}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/knowledge-base/ingest")
+async def kb_ingest_endpoint(request: IngestRequest):
+    try:
+        num_chunks = ingest_to_knowledge_base(
+            chunks=request.chunks,
+            metadata=request.metadata
+        )
+        return {"message": "Success", "chunks_added": num_chunks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/knowledge-base/search")
+async def kb_search_endpoint(request: KnowledgeSearchRequest):
+    try:
+        results = search_knowledge_base(
+            query=request.query,
+            top_k=request.top_k,
+            filter_metadata=request.filter_metadata
+        )
+        return {"results": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

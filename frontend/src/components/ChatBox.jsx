@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, Sparkles, Loader2, ChevronDown, BrainCircuit, Layers, Paperclip, FileText } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Loader2, ChevronDown, BrainCircuit, Layers, Paperclip, FileText, Database } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import QuizWidget from './QuizWidget';
 import FlashcardWidget from './FlashcardWidget';
 import DocumentWidget from './DocumentWidget';
+import KnowledgeBaseSidebar from './KnowledgeBaseSidebar';
 
 const ChatBox = () => {
   const [messages, setMessages] = useState([]);
@@ -13,6 +14,7 @@ const ChatBox = () => {
   const [persona, setPersona] = useState('researcher');
   const [userName, setUserName] = useState('User');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState(null);
   const messagesEndRef = useRef(null);
@@ -190,14 +192,25 @@ const ChatBox = () => {
 
         {/* Settings Bar */}
         <div className="flex items-center gap-1.5 text-sm bg-white/60 dark:bg-black/40 p-1.5 rounded-xl backdrop-blur-md border border-white/50 dark:border-white/10 shadow-sm">
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-space-indigo/5 dark:bg-white/5 hover:bg-space-indigo/10 dark:hover:bg-white/10 text-space-indigo dark:text-parchment font-medium transition-colors"
+            title="Open Knowledge Base"
+          >
+            <Database className="w-4 h-4" />
+            <span className="hidden md:inline">Knowledge Base</span>
+          </button>
+          
+          <div className="h-6 w-px bg-dusty-grape/20 dark:bg-white/10 mx-1"></div>
+          
           <input 
             type="text" 
             value={userName} 
             onChange={(e) => setUserName(e.target.value)} 
             placeholder="Your Name"
-            className="px-3 py-2 rounded-lg bg-white/80 dark:bg-white/5 border border-transparent hover:border-white/30 dark:hover:border-white/10 text-space-indigo dark:text-parchment focus:outline-none focus:ring-1 focus:ring-space-indigo w-32 placeholder-dusty-grape dark:placeholder-lilac-ash/60 transition-all font-medium"
+            className="px-3 py-2 rounded-lg bg-white/80 dark:bg-white/5 border border-transparent hover:border-white/30 dark:hover:border-white/10 text-space-indigo dark:text-parchment focus:outline-none focus:ring-1 focus:ring-space-indigo w-32 placeholder-dusty-grape dark:placeholder-lilac-ash/60 transition-all font-medium hidden md:block"
           />
-          <div className="h-6 w-px bg-dusty-grape/20 dark:bg-white/10 mx-1"></div>
+          <div className="h-6 w-px bg-dusty-grape/20 dark:bg-white/10 mx-1 hidden md:block"></div>
           {/* Custom Dropdown */}
           <div className="relative">
             <button 
@@ -416,6 +429,9 @@ const ChatBox = () => {
           </div>
         </div>
       </div>
+
+      {/* Sidebar Overlay */}
+      <KnowledgeBaseSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
     </div>
   );
 };

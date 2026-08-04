@@ -73,6 +73,29 @@ const DocumentWidget = ({ docData }) => {
     }
   };
 
+  const handleIngest = async () => {
+    if (!chunksData?.chunks) return;
+    setIsEmbedding(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/knowledge-base/ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chunks: chunksData.chunks,
+          metadata: metadata
+        })
+      });
+      if (!response.ok) throw new Error('Ingestion failed');
+      setCollectionName("PERSISTENT_KB"); // Just flag it as complete
+      setSimilarChunks(null);
+      setSelectedChunkIdx(null);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsEmbedding(false);
+    }
+  };
+
   const handleChunkClick = async (idx, text) => {
     if (!collectionName) return;
     setSelectedChunkIdx(idx);
@@ -244,17 +267,27 @@ const DocumentWidget = ({ docData }) => {
                           
                           {/* Embeddings Action */}
                           {!collectionName ? (
-                            <button 
-                              onClick={handleEmbedChunks}
-                              disabled={isEmbedding}
-                              className="text-xs bg-space-indigo text-white dark:bg-parchment dark:text-space-indigo px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
-                            >
-                              {isEmbedding ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                              {isEmbedding ? 'Generating Vectors...' : 'Convert to Vectors (Embed)'}
-                            </button>
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={handleEmbedChunks}
+                                disabled={isEmbedding}
+                                className="text-[10px] uppercase font-bold tracking-wider text-space-indigo/50 hover:text-space-indigo dark:text-parchment/50 dark:hover:text-parchment px-2 py-1.5 transition-colors disabled:opacity-50"
+                                title="Use ephemeral playground search"
+                              >
+                                Test Search
+                              </button>
+                              <button 
+                                onClick={handleIngest}
+                                disabled={isEmbedding}
+                                className="text-xs bg-space-indigo text-white dark:bg-parchment dark:text-space-indigo px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5 font-semibold"
+                              >
+                                {isEmbedding ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                                {isEmbedding ? 'Saving...' : 'Add to Knowledge Base'}
+                              </button>
+                            </div>
                           ) : (
-                            <span className="text-green-600 dark:text-green-400 bg-green-500/10 px-2 py-1 rounded-md flex items-center gap-1.5">
-                              {isSearching ? <Loader2 className="w-3 h-3 animate-spin" /> : '✓'} Vectors Ready. Click a chunk!
+                            <span className="text-green-600 dark:text-green-400 bg-green-500/10 px-2 py-1 rounded-md flex items-center gap-1.5 font-medium">
+                              {isSearching ? <Loader2 className="w-3 h-3 animate-spin" /> : '✓'} {collectionName === 'PERSISTENT_KB' ? 'Saved to KB!' : 'Vectors Ready!'}
                             </span>
                           )}
                         </div>

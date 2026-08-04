@@ -5,8 +5,10 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from app.models.chat import ChatRequest
+from app.models.chunking import ChunkRequest
 from app.services.llm_service import generate_chat_stream, generate_quiz_from_history, generate_flashcards_from_history
 from app.services.document_service import process_uploaded_file
+from app.services.chunking_service import chunk_document
 
 app = FastAPI(
     title="AI Research Assistant API",
@@ -70,3 +72,16 @@ async def upload_document(file: UploadFile = File(...)):
         if 'temp_path' in locals() and os.path.exists(temp_path):
             os.unlink(temp_path)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/document/chunk")
+async def chunk_document_endpoint(request: ChunkRequest):
+    try:
+        result = chunk_document(
+            text=request.text,
+            chunk_size=request.chunk_size,
+            chunk_overlap=request.chunk_overlap,
+            strategy=request.strategy
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

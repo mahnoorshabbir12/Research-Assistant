@@ -9,3 +9,4 @@ python-multipart
 pypdf
 docx2txt
 langchain-community
+tiktoken

@@ -3,7 +3,9 @@ from typing import List, Optional
 
 class Message(BaseModel):
     role: str
-    content: str
+    content: str = ""
+    type: Optional[str] = None
+    data: Optional[dict] = None
 
 class ChatRequest(BaseModel):
     messages: List[Message]

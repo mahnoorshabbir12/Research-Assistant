@@ -70,7 +70,7 @@ const ChatBox = () => {
     const newMessages = [...messages];
     
     if (pendingAttachment) {
-      newMessages.push({ role: 'user', type: 'document', data: pendingAttachment });
+      newMessages.push({ role: 'user', content: `[Attached Document: ${pendingAttachment.metadata.filename}]`, type: 'document', data: pendingAttachment });
       setPendingAttachment(null);
     }
     
@@ -140,10 +140,6 @@ const ChatBox = () => {
     }
 
     setIsUploading(true);
-    setMessages((prev) => [
-      ...prev,
-      { role: 'user', type: 'loading', content: `Uploading ${file.name}...` }
-    ]);
 
     try {
       const formData = new FormData();
@@ -158,9 +154,6 @@ const ChatBox = () => {
       const data = await response.json();
 
       setPendingAttachment(data);
-      
-      // Remove the loading message
-      setMessages((prev) => prev.slice(0, -1));
     } catch (error) {
       console.error('Upload Error:', error);
       setMessages((prev) => [
@@ -352,7 +345,6 @@ const ChatBox = () => {
             >
               <Layers className="w-3.5 h-3.5" /> Generate Flashcards
             </button>
-            </button>
           </div>
 
           {/* Pending Attachment Chip */}
@@ -400,7 +392,7 @@ const ChatBox = () => {
               disabled={isLoading || isUploading}
               className="absolute left-3 p-2 text-dusty-grape/40 hover:text-space-indigo dark:text-parchment/30 dark:hover:text-parchment transition-colors z-10 disabled:opacity-50"
             >
-              <Paperclip className="w-5 h-5" />
+              {isUploading ? <Loader2 className="w-5 h-5 animate-spin text-space-indigo dark:text-parchment" /> : <Paperclip className="w-5 h-5" />}
             </button>
             <input
               type="text"

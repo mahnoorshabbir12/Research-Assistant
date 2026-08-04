@@ -6,10 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from app.models.chat import ChatRequest
 from app.models.chunking import ChunkRequest
+from app.models.embedding import EmbedRequest, SimilarityRequest
 from app.services.llm_service import generate_chat_stream, generate_quiz_from_history, generate_flashcards_from_history
 from app.services.document_service import process_uploaded_file
 from app.services.chunking_service import chunk_document
+from app.services.embedding_service import embed_chunks, find_similar_chunks
 
+# Trigger reload
 app = FastAPI(
     title="AI Research Assistant API",
     description="Backend API for the AI Research Assistant",
@@ -83,5 +86,25 @@ async def chunk_document_endpoint(request: ChunkRequest):
             strategy=request.strategy
         )
         return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/document/embed")
+async def embed_document_endpoint(request: EmbedRequest):
+    try:
+        collection_name = embed_chunks(request.chunks)
+        return {"collection_name": collection_name}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/document/similarity")
+async def similarity_endpoint(request: SimilarityRequest):
+    try:
+        similar_chunks = find_similar_chunks(
+            collection_name=request.collection_name,
+            query=request.query,
+            top_k=request.top_k
+        )
+        return {"similar_chunks": similar_chunks}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -13,6 +13,13 @@ const DocumentWidget = ({ docData }) => {
   const [isChunking, setIsChunking] = useState(false);
   const [chunksData, setChunksData] = useState(null);
 
+  // Embedding / Similarity State
+  const [isEmbedding, setIsEmbedding] = useState(false);
+  const [collectionName, setCollectionName] = useState(null);
+  const [selectedChunkIdx, setSelectedChunkIdx] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [similarChunks, setSimilarChunks] = useState(null);
+
   const { content, metadata } = docData;
 
   const handleChunkDocument = async () => {
@@ -34,10 +41,62 @@ const DocumentWidget = ({ docData }) => {
       if (!response.ok) throw new Error('Chunking failed');
       const data = await response.json();
       setChunksData(data);
+      // Reset embedding states when re-chunking
+      setCollectionName(null);
+      setSelectedChunkIdx(null);
+      setSimilarChunks(null);
     } catch (error) {
       console.error(error);
     } finally {
       setIsChunking(false);
+    }
+  };
+
+  const handleEmbedChunks = async () => {
+    if (!chunksData?.chunks) return;
+    setIsEmbedding(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/document/embed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chunks: chunksData.chunks })
+      });
+      if (!response.ok) throw new Error('Embedding failed');
+      const data = await response.json();
+      setCollectionName(data.collection_name);
+      setSimilarChunks(null);
+      setSelectedChunkIdx(null);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsEmbedding(false);
+    }
+  };
+
+  const handleChunkClick = async (idx, text) => {
+    if (!collectionName) return;
+    setSelectedChunkIdx(idx);
+    setIsSearching(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/document/similarity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          collection_name: collectionName, 
+          query: text,
+          top_k: 4 // get 4 because the chunk itself will be 1st
+        })
+      });
+      if (!response.ok) throw new Error('Similarity search failed');
+      const data = await response.json();
+      
+      // Filter out the exact chunk we clicked to avoid showing it as a "similar" result
+      const others = data.similar_chunks.filter(c => c.id !== `chunk_${idx}`).slice(0, 3);
+      setSimilarChunks(others);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -175,34 +234,76 @@ const DocumentWidget = ({ docData }) => {
                       )}
                       
                       {chunksData && (
-                        <div className="mb-2 text-xs font-semibold text-space-indigo/70 dark:text-parchment/70 flex justify-between items-center px-1">
-                          <span>Generated {chunksData.num_chunks} chunks</span>
-                          <span className="bg-space-indigo/10 dark:bg-white/10 px-2 py-1 rounded-md">
-                            {chunksData.strategy === 'token' ? 'Tokens' : 'Characters'}
-                          </span>
+                        <div className="mb-2 text-xs font-semibold flex justify-between items-center px-1">
+                          <div className="text-space-indigo/70 dark:text-parchment/70 flex gap-2 items-center">
+                            <span>{chunksData.num_chunks} chunks</span>
+                            <span className="bg-space-indigo/10 dark:bg-white/10 px-2 py-1 rounded-md">
+                              {chunksData.strategy === 'token' ? 'Tokens' : 'Characters'}
+                            </span>
+                          </div>
+                          
+                          {/* Embeddings Action */}
+                          {!collectionName ? (
+                            <button 
+                              onClick={handleEmbedChunks}
+                              disabled={isEmbedding}
+                              className="text-xs bg-space-indigo text-white dark:bg-parchment dark:text-space-indigo px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
+                            >
+                              {isEmbedding ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                              {isEmbedding ? 'Generating Vectors...' : 'Convert to Vectors (Embed)'}
+                            </button>
+                          ) : (
+                            <span className="text-green-600 dark:text-green-400 bg-green-500/10 px-2 py-1 rounded-md flex items-center gap-1.5">
+                              {isSearching ? <Loader2 className="w-3 h-3 animate-spin" /> : '✓'} Vectors Ready. Click a chunk!
+                            </span>
+                          )}
                         </div>
                       )}
 
-                      {chunksData?.chunks.map((chunk, idx) => (
-                        <motion.div 
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: Math.min(idx * 0.05, 0.5) }}
-                          key={idx} 
-                          className={`p-4 rounded-xl border border-dusty-grape/10 dark:border-white/5 relative group ${
-                            idx % 2 === 0 
-                              ? 'bg-space-indigo/[0.03] dark:bg-white/[0.03]' 
-                              : 'bg-dusty-grape/[0.03] dark:bg-black/20'
-                          }`}
-                        >
-                          <div className="absolute top-3 right-4 text-[10px] font-bold text-space-indigo/40 dark:text-parchment/30 bg-white/50 dark:bg-black/50 px-2 py-1 rounded-md">
-                            CHUNK {idx + 1}
-                          </div>
-                          <p className="text-sm text-space-indigo/90 dark:text-parchment/90 whitespace-pre-wrap font-sans leading-relaxed mt-4">
-                            {chunk}
-                          </p>
-                        </motion.div>
-                      ))}
+                      {chunksData?.chunks.map((chunk, idx) => {
+                        const isSelected = selectedChunkIdx === idx;
+                        const match = similarChunks?.find(c => c.id === `chunk_${idx}`);
+                        const isMatch = !!match;
+                        
+                        let baseStyle = "border-dusty-grape/10 dark:border-white/5";
+                        if (isSelected) baseStyle = "border-space-indigo dark:border-parchment border-2 shadow-sm scale-[1.01]";
+                        else if (isMatch) baseStyle = "border-green-500 dark:border-green-400 border-2 bg-green-500/5 shadow-sm";
+                        else if (collectionName) baseStyle += " cursor-pointer hover:border-space-indigo/50 dark:hover:border-parchment/50";
+
+                        return (
+                          <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: Math.min(idx * 0.05, 0.5) }}
+                            key={idx} 
+                            onClick={() => handleChunkClick(idx, chunk)}
+                            className={`p-4 rounded-xl relative group transition-all duration-200 border ${baseStyle} ${
+                              idx % 2 === 0 && !isSelected && !isMatch
+                                ? 'bg-space-indigo/[0.03] dark:bg-white/[0.03]' 
+                                : !isSelected && !isMatch ? 'bg-dusty-grape/[0.03] dark:bg-black/20' : ''
+                            }`}
+                          >
+                            <div className="absolute top-3 right-4 flex items-center gap-2">
+                              {isMatch && (
+                                <span className="text-[10px] font-bold text-green-700 dark:text-green-300 bg-green-500/20 px-2 py-1 rounded-md">
+                                  SIMILARITY: {match.distance.toFixed(3)}
+                                </span>
+                              )}
+                              {isSelected && (
+                                <span className="text-[10px] font-bold text-white bg-space-indigo dark:bg-parchment dark:text-space-indigo px-2 py-1 rounded-md">
+                                  QUERY
+                                </span>
+                              )}
+                              <div className="text-[10px] font-bold text-space-indigo/40 dark:text-parchment/30 bg-white/50 dark:bg-black/50 px-2 py-1 rounded-md">
+                                CHUNK {idx + 1}
+                              </div>
+                            </div>
+                            <p className="text-sm text-space-indigo/90 dark:text-parchment/90 whitespace-pre-wrap font-sans leading-relaxed mt-4">
+                              {chunk}
+                            </p>
+                          </motion.div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

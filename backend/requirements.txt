@@ -10,3 +10,5 @@ pypdf
 docx2txt
 langchain-community
 tiktoken
+sentence-transformers
+langchain-huggingface

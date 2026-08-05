@@ -15,13 +15,17 @@ researcher_system_prompt = """You are an advanced AI Research Assistant.
 You are helping the user, {user_name}, with their academic and scientific research.
 Today's date is {current_date} ({current_day}).
 
+{context}
+
 Always base your answers on factual information. When explaining complex concepts, be clear, structured, and concise.
+If you use the provided Knowledge Base Context to answer the question, you MUST naturally cite the source document filename (e.g. "According to document.pdf...").
 If you don't know the answer, admit it rather than hallucinating. Prioritize analytical depth and accuracy.
 """
 
 researcher_prompt = ChatPromptTemplate.from_messages([
     SystemMessagePromptTemplate.from_template(researcher_system_prompt),
-    MessagesPlaceholder(variable_name="messages")
+    MessagesPlaceholder(variable_name="history"),
+    HumanMessagePromptTemplate.from_template("{input}")
 ]).partial(current_date=get_current_date, current_day=get_current_day)
 
 # ==========================================
@@ -30,11 +34,16 @@ researcher_prompt = ChatPromptTemplate.from_messages([
 summarizer_system_prompt = """You are a brilliant Creative Summarizer.
 Your goal is to explain things to {user_name} using fun, engaging analogies, removing all jargon, and making it easy for a 10-year-old to understand.
 Today is {current_day}. Use a lot of enthusiasm and emojis!
+
+{context}
+
+If you use the provided Knowledge Base Context, mention the filename casually (e.g. "I read in document.pdf that...").
 """
 
 summarizer_prompt = ChatPromptTemplate.from_messages([
     SystemMessagePromptTemplate.from_template(summarizer_system_prompt),
-    MessagesPlaceholder(variable_name="messages")
+    MessagesPlaceholder(variable_name="history"),
+    HumanMessagePromptTemplate.from_template("{input}")
 ]).partial(current_date=get_current_date, current_day=get_current_day)
 
 # ==========================================
@@ -44,6 +53,10 @@ tutor_system_prompt = """You are a Socratic Tutor.
 Your role is to guide {user_name} to find the answer themselves rather than just giving it to them.
 You must always ask a guiding question back. Never give the direct answer immediately.
 Today is {current_day}.
+
+{context}
+
+If the user's question relates to the Knowledge Base Context, use the context to formulate your guiding questions, and mention the source filename.
 """
 
 # Here we embed few-shot examples directly into the message history
@@ -55,8 +68,9 @@ tutor_prompt = ChatPromptTemplate.from_messages([
     # Few-shot example 2
     HumanMessage(content="They need water and sunlight, right?"),
     AIMessage(content="Exactly! So if they use water and sunlight, what do you think they are 'synthesizing' or making out of those ingredients?"),
-    # The actual conversation placeholder
-    MessagesPlaceholder(variable_name="messages")
+    # The actual conversation history placeholder
+    MessagesPlaceholder(variable_name="history"),
+    HumanMessagePromptTemplate.from_template("{input}")
 ]).partial(current_date=get_current_date, current_day=get_current_day)
 
 # ==========================================
@@ -85,7 +99,7 @@ You MUST format your output according to the instructions below.
 
 quiz_prompt = ChatPromptTemplate.from_messages([
     SystemMessagePromptTemplate.from_template(quiz_system_prompt),
-    MessagesPlaceholder(variable_name="messages"),
+    MessagesPlaceholder(variable_name="history"),
     HumanMessagePromptTemplate.from_template("Based on the conversation above, please generate the multiple-choice quiz now. You MUST output ONLY valid JSON following the schema. Do not include any conversational text.")
 ])
 
@@ -99,6 +113,6 @@ You MUST format your output according to the instructions below.
 
 flashcard_prompt = ChatPromptTemplate.from_messages([
     SystemMessagePromptTemplate.from_template(flashcard_system_prompt),
-    MessagesPlaceholder(variable_name="messages"),
+    MessagesPlaceholder(variable_name="history"),
     HumanMessagePromptTemplate.from_template("Based on the conversation above, please generate the flashcards now. You MUST output ONLY valid JSON following the schema. Do not include any conversational text.")
 ])

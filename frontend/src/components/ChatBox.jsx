@@ -8,6 +8,7 @@ import DocumentWidget from './DocumentWidget';
 import KnowledgeBaseSidebar from './KnowledgeBaseSidebar';
 
 const ChatBox = () => {
+  const [sessionId] = useState(() => crypto.randomUUID());
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -32,7 +33,8 @@ const ChatBox = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: messages.filter(m => !m.type), // Only send real chat history
+          messages: messages.filter(m => !m.type), // Keep for legacy/fallback, but backend uses sessionId
+          session_id: sessionId,
           temperature: 0.3,
           persona: persona,
           user_name: userName,
@@ -92,6 +94,7 @@ const ChatBox = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: newMessages,
+          session_id: sessionId,
           temperature: 0.7,
           persona: persona,
           user_name: userName,

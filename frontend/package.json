@@ -12,10 +12,13 @@
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",
     "framer-motion": "^12.43.0",
+    "katex": "^0.18.1",
     "lucide-react": "^1.28.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-markdown": "^10.1.0"
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

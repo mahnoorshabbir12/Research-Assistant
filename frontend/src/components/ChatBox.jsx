@@ -1,14 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, Sparkles, Loader2, ChevronDown, BrainCircuit, Layers, Paperclip, FileText, Database } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Loader2, ChevronDown, BrainCircuit, Layers, Paperclip, FileText, Database, Clock, MessageSquare, Plus } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import QuizWidget from './QuizWidget';
 import FlashcardWidget from './FlashcardWidget';
 import DocumentWidget from './DocumentWidget';
-import KnowledgeBaseSidebar from './KnowledgeBaseSidebar';
+import ChatHistorySidebar from './ChatHistorySidebar';
 
 const ChatBox = () => {
-  const [sessionId] = useState(() => crypto.randomUUID());
+  const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -18,10 +21,58 @@ const ChatBox = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const fileInputRef = useRef(null);
   const scrollRafRef = useRef(null);
+
+  // Load sessions on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('chat_sessions');
+    if (saved) {
+      try {
+        setSessions(JSON.parse(saved));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
+
+  // Save current session when messages change
+  useEffect(() => {
+    if (messages.length === 0) return;
+    
+    setSessions(prev => {
+      const existing = prev.find(s => s.id === sessionId);
+      const title = messages.find(m => m.role === 'user' && !m.type)?.content?.slice(0, 40) || 'New Chat';
+      
+      let updated;
+      if (existing) {
+        updated = prev.map(s => s.id === sessionId ? { ...s, messages, title, updatedAt: Date.now() } : s);
+      } else {
+        updated = [{ id: sessionId, title, messages, updatedAt: Date.now() }, ...prev];
+      }
+      localStorage.setItem('chat_sessions', JSON.stringify(updated));
+      return updated;
+    });
+  }, [messages, sessionId]);
+
+  const loadSession = (id) => {
+    const session = sessions.find(s => s.id === id);
+    if (session) {
+      setSessionId(session.id);
+      setMessages(session.messages);
+      setIsSidebarOpen(false);
+    }
+  };
+
+  const startNewSession = () => {
+    setSessionId(crypto.randomUUID());
+    setMessages([]);
+    setIsSidebarOpen(false);
+  };
 
   const handleGenerateStructured = async (type) => {
     if (isLoading || messages.length === 0) return;
@@ -81,7 +132,8 @@ const ChatBox = () => {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() && !pendingAttachment) return;
+    if (isLoading) return;
 
     const newMessages = [...messages];
     
@@ -176,7 +228,6 @@ const ChatBox = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Reset file input so same file can be uploaded again if needed
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -187,19 +238,48 @@ const ChatBox = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('http://localhost:8000/api/upload', {
+      // 1. Upload and process to get text
+      const uploadRes = await fetch('http://localhost:8000/api/upload', {
         method: 'POST',
         body: formData,
       });
 
-      if (!response.ok) throw new Error('Upload failed');
-      const data = await response.json();
+      if (!uploadRes.ok) throw new Error('Upload failed');
+      const data = await uploadRes.json();
 
+      // 2. Chunking
+      const chunkRes = await fetch('http://localhost:8000/api/document/chunk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: data.content,
+          chunk_size: 1000,
+          chunk_overlap: 200,
+          strategy: 'recursive'
+        })
+      });
+      
+      if (!chunkRes.ok) throw new Error('Chunking failed');
+      const chunkData = await chunkRes.json();
+
+      // 3. Ingesting to DB
+      const ingestRes = await fetch('http://localhost:8000/api/knowledge-base/ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chunks: chunkData.chunks,
+          metadata: data.metadata
+        })
+      });
+      
+      if (!ingestRes.ok) throw new Error('Ingestion failed');
+
+      // Set as pending to show to the user
       setPendingAttachment(data);
     } catch (error) {
       console.error('Upload Error:', error);
       setMessages((prev) => [
-        ...prev.slice(0, -1),
+        ...prev,
         { role: 'assistant', type: 'error', content: `Failed to process document.` }
       ]);
     } finally {
@@ -231,14 +311,22 @@ const ChatBox = () => {
         </div>
 
         {/* Settings Bar */}
-        <div className="flex items-center gap-1.5 text-sm bg-white/60 dark:bg-black/40 p-1.5 rounded-xl backdrop-blur-md border border-white/50 dark:border-white/10 shadow-sm">
+        <div className="flex items-center gap-1.5 text-sm bg-white/60 dark:bg-black/40 p-1.5 rounded-xl backdrop-blur-md border border-white/50 dark:border-white/10 shadow-sm mt-4 md:mt-0">
           <button
             onClick={() => setIsSidebarOpen(true)}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-space-indigo/5 dark:bg-white/5 hover:bg-space-indigo/10 dark:hover:bg-white/10 text-space-indigo dark:text-parchment font-medium transition-colors"
-            title="Open Knowledge Base"
+            title="Open Chat History"
           >
-            <Database className="w-4 h-4" />
-            <span className="hidden md:inline">Knowledge Base</span>
+            <Clock className="w-4 h-4" />
+            <span className="hidden md:inline">History</span>
+          </button>
+          
+          <button
+            onClick={startNewSession}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-space-indigo/5 dark:bg-white/5 hover:bg-space-indigo/10 dark:hover:bg-white/10 text-space-indigo dark:text-parchment font-medium transition-colors"
+            title="New Chat"
+          >
+            <Plus className="w-4 h-4" />
           </button>
           
           <div className="h-6 w-px bg-dusty-grape/20 dark:bg-white/10 mx-1"></div>
@@ -310,11 +398,11 @@ const ChatBox = () => {
           <div className="max-w-4xl mx-auto p-6 md:p-8 space-y-6 pb-6">
             {messages.length === 0 ? (
               <div className="min-h-[50vh] flex flex-col items-center justify-center text-dusty-grape/70 dark:text-lilac-ash/70 space-y-4">
-                <div className="w-16 h-16 rounded-full bg-parchment flex items-center justify-center mb-2">
+                <div className="w-16 h-16 rounded-full bg-parchment flex items-center justify-center mb-2 shadow-sm border border-dusty-grape/10">
                   <Bot className="w-8 h-8 text-space-indigo" />
                 </div>
                 <p className="text-xl font-display font-medium">Start a conversation</p>
-                <p className="text-sm">Try asking about a complex scientific concept</p>
+                <p className="text-sm">Try asking about a complex scientific concept or upload a document</p>
               </div>
             ) : (
               messages.map((msg, idx) => (
@@ -372,7 +460,9 @@ const ChatBox = () => {
                       ) : (
                         <div className="flex flex-col gap-2">
                           <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-space-indigo/5 dark:prose-pre:bg-white/5">
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                              {msg.content?.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$').replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$')}
+                            </ReactMarkdown>
                           </div>
                           {msg.usage && !isLoading && (
                             <div className="self-end mt-2 px-2 py-0.5 rounded-full bg-space-indigo/5 dark:bg-white/5 border border-dusty-grape/10 dark:border-white/10 text-[10px] font-mono text-dusty-grape/60 dark:text-lilac-ash/60">
@@ -486,7 +576,14 @@ const ChatBox = () => {
       </div>
 
       {/* Sidebar Overlay */}
-      <KnowledgeBaseSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <ChatHistorySidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)} 
+        sessions={sessions}
+        currentSessionId={sessionId}
+        onSelectSession={loadSession}
+        onNewSession={startNewSession}
+      />
     </div>
   );
 };

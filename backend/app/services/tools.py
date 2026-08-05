@@ -6,7 +6,8 @@ from app.services.embedding_service import search_knowledge_base, list_knowledge
 
 @tool
 def calculate(expression: str) -> str:
-    """Evaluates a mathematical expression safely. Use this when the user asks you to perform math. Provide the expression as a string like '2 + 2' or '100 / 5'."""
+    """Evaluates a mathematical expression safely. Use this when the user asks you to perform math.
+    CRITICAL: You MUST pass the user's expression EXACTLY as they wrote it. Do NOT rewrite, factor, simplify, or reinterpret the expression in any way. For example, if the user writes '33*67', pass '33*67' — not '3*3*67' or any other equivalent form."""
     try:
         # Note: eval is used for simplicity here in a local dev environment.
         # In production, use ast.literal_eval or a safe math parser.

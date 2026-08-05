@@ -1,4 +1,5 @@
 import os
+import re
 import json
 from datetime import datetime
 from typing import AsyncGenerator
@@ -17,6 +18,43 @@ from app.services.prompts import get_prompt_for_persona, quiz_prompt, flashcard_
 from app.services.embedding_service import search_knowledge_base
 from langgraph.prebuilt import create_react_agent
 from app.services.tools import AVAILABLE_TOOLS
+
+MATH_PATTERN = re.compile(
+    r"^\s*[\d\s\+\-\*\/\.\(\)\^\%]+\s*$"
+)
+
+def try_compute_math(text: str):
+    """If the user's message is a pure math expression, compute it directly. Returns the result string or None."""
+    cleaned = text.strip()
+    # Also handle natural language like "what is 33*67" or "calculate 4*45/5"
+    prefix_match = re.match(
+        r"^(?:what\s+is|calculate|compute|evaluate|solve|whats|what's)?\s*(.+)$",
+        cleaned, re.IGNORECASE
+    )
+    if prefix_match:
+        expr = prefix_match.group(1).strip().rstrip("?").strip()
+    else:
+        expr = cleaned
+
+    # Replace common symbols
+    expr = expr.replace("×", "*").replace("÷", "/").replace("^", "**").replace("x", "*") if re.match(r"^[\d\s\+\-\*\/\.\(\)\^×÷xX\%]+$", expr) else expr
+
+    if not MATH_PATTERN.match(expr.replace("**", "*")):
+        return None
+
+    allowed_chars = "0123456789+-*/(). %"
+    normalized = expr.replace("**", "POW")
+    if not all(c in allowed_chars + "POW" for c in normalized.replace("POW", "")):
+        return None
+
+    try:
+        result = eval(expr)
+        if isinstance(result, float) and result == int(result):
+            result = int(result)
+        return f"The result of {text.strip()} is **{result}**."
+    except Exception:
+        return None
+
 
 def get_llm(temperature: float = 0.7):
     return ChatOpenAI(
@@ -64,8 +102,19 @@ def get_chat_chain(persona: str, temperature: float = 0.7):
     return RunnableLambda(agent_adapter)
 
 async def generate_chat_stream(request: ChatRequest) -> AsyncGenerator[str, None]:
+    # Intercept pure math expressions before they reach the LLM
+    last_user_msg = next(
+        (m for m in reversed(request.messages) if m.role == "user" and not m.type),
+        None
+    )
+    if last_user_msg:
+        math_result = try_compute_math(last_user_msg.content)
+        if math_result:
+            yield f"data: {json.dumps({'type': 'content', 'data': math_result})}\n\n"
+            return
+
     chain = get_chat_chain(persona=request.persona, temperature=request.temperature)
-    
+
     async for event in chain.astream_events(
         {"messages": request.messages, "user_name": request.user_name},
         config={"configurable": {"session_id": request.session_id}},

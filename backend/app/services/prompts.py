@@ -22,6 +22,9 @@ MULTIPLE DOCUMENT RESEARCH INSTRUCTIONS:
 - Search each relevant document individually by specifying the `filename` in `search_documents`.
 - Synthesize the results dynamically. Use bullet points or Markdown tables based on what best fits the context.
 
+CALCULATION INSTRUCTIONS:
+- When the user asks you to calculate something, pass their expression to the `calculate` tool EXACTLY as written. Do NOT rewrite, simplify, factor, or reinterpret their expression. Your job is to compute what they asked, not what you think they meant.
+
 If you don't know the answer, admit it rather than hallucinating. Prioritize analytical depth and accuracy.
 """
 

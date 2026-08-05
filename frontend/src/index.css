@@ -4,12 +4,13 @@
 @theme {
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-display: 'Outfit', system-ui, sans-serif;
-  
+
   --color-space-indigo: #22223bff;
   --color-dusty-grape: #4a4e69ff;
   --color-lilac-ash: #9a8c98ff;
   --color-almond-silk: #c9ada7ff;
   --color-parchment: #f2e9e4ff;
+  --color-night: #181926;
 
   --color-parchment-glass: rgba(242, 233, 228, 0.7);
   --color-indigo-glass: rgba(34, 34, 59, 0.85);
@@ -22,7 +23,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: var(--color-space-indigo);
+    --background: var(--color-night);
     --foreground: var(--color-parchment);
   }
 }
@@ -31,12 +32,21 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  background-image: 
+  background-image:
     radial-gradient(at 0% 0%, rgba(201, 173, 167, 0.2) 0px, transparent 50%),
     radial-gradient(at 100% 0%, rgba(154, 140, 152, 0.2) 0px, transparent 50%),
     radial-gradient(at 100% 100%, rgba(74, 78, 105, 0.15) 0px, transparent 50%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background-image:
+      radial-gradient(at 0% 0%, rgba(74, 78, 105, 0.3) 0px, transparent 50%),
+      radial-gradient(at 100% 50%, rgba(34, 34, 59, 0.4) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, rgba(154, 140, 152, 0.08) 0px, transparent 50%);
+  }
 }
 
 /* Minimal scrollbar */
@@ -62,4 +72,9 @@ body {
   ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
   }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }

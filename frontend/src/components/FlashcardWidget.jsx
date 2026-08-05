@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, ChevronLeft, ChevronRight, RotateCw } from 'lucide-react';
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const FlashcardWidget = ({ deckData }) => {
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -25,8 +25,8 @@ const FlashcardWidget = ({ deckData }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-[#2c2d44] border border-dusty-grape/10 dark:border-white/10 rounded-2xl p-6 shadow-lg my-4 max-w-xl w-full mx-auto flex flex-col items-center">
-      <div className="w-full flex justify-between items-center mb-6">
+    <div className="bg-white dark:bg-[#2c2d44] border border-dusty-grape/10 dark:border-white/10 rounded-2xl p-5 shadow-lg my-2 w-full flex flex-col items-center">
+      <div className="w-full flex justify-between items-center mb-4">
         <h3 className="text-lg font-bold font-display text-space-indigo dark:text-parchment flex items-center gap-2">
           <Layers className="w-5 h-5 text-dusty-grape dark:text-lilac-ash" />
           {deckData.title}
@@ -37,8 +37,8 @@ const FlashcardWidget = ({ deckData }) => {
       </div>
 
       {/* 3D Perspective Container */}
-      <div 
-        className="w-full aspect-[3/2] perspective-[1000px] cursor-pointer group"
+      <div
+        className="w-full aspect-[5/3] perspective-[1000px] cursor-pointer group"
         onClick={() => setIsFlipped(!isFlipped)}
       >
         <motion.div
@@ -56,9 +56,9 @@ const FlashcardWidget = ({ deckData }) => {
             <h4 className="text-2xl font-bold text-space-indigo dark:text-parchment text-center leading-tight">
               {currentCard.front}
             </h4>
-            <div className="absolute bottom-4 right-4 text-dusty-grape/40 dark:text-lilac-ash/30 group-hover:text-dusty-grape/70 transition-colors">
-              <RotateCw className="w-5 h-5" />
-            </div>
+            <p className="absolute bottom-4 right-4 text-xs text-dusty-grape/40 dark:text-lilac-ash/30 group-hover:text-dusty-grape/60 transition-colors font-medium">
+              Click to flip
+            </p>
           </div>
 
           {/* Back */}
@@ -74,7 +74,7 @@ const FlashcardWidget = ({ deckData }) => {
         </motion.div>
       </div>
 
-      <div className="flex justify-between items-center w-full mt-8">
+      <div className="flex justify-between items-center w-full mt-4">
         <button
           onClick={handlePrev}
           disabled={currentIdx === 0}

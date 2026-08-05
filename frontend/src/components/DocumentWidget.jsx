@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, ChevronDown, File, Settings2, Loader2, SplitSquareHorizontal } from 'lucide-react';
 

@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime
 from typing import AsyncGenerator
 from dotenv import load_dotenv
 
@@ -15,13 +16,13 @@ from app.models.chat import ChatRequest
 from app.models.structured import Quiz, FlashcardDeck
 from app.services.prompts import get_prompt_for_persona, quiz_prompt, flashcard_prompt
 from app.services.embedding_service import search_knowledge_base
-from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langgraph.prebuilt import create_react_agent
 from app.services.tools import AVAILABLE_TOOLS
 
-DB_URI = f"sqlite:///{os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'memory.db')}"
+DB_URI = f"sqlite+aiosqlite:///{os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'memory.db')}"
 
 def get_session_history(session_id: str):
-    return SQLChatMessageHistory(session_id=session_id, connection_string=DB_URI)
+    return SQLChatMessageHistory(session_id=session_id, connection=DB_URI, async_mode=True)
 
 def get_llm(temperature: float = 0.7):
     return ChatOpenAI(
@@ -35,14 +36,33 @@ def get_llm(temperature: float = 0.7):
 
 def get_chat_chain(persona: str, temperature: float = 0.7):
     llm = get_llm(temperature=temperature)
-    prompt = get_prompt_for_persona(persona)
+    prompt_template = get_prompt_for_persona(persona)
     
-    agent = create_tool_calling_agent(llm, AVAILABLE_TOOLS, prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=AVAILABLE_TOOLS, verbose=True)
+    # In newer LangChain versions, we use langgraph for tool agents
+    agent = create_react_agent(model=llm, tools=AVAILABLE_TOOLS)
+    
+    # Create an adapter to format the inputs and invoke the agent
+    async def agent_adapter(inputs: dict, config: dict):
+        sys_template = prompt_template.messages[0].prompt
+        sys_msg = sys_template.format(
+            user_name=inputs.get("user_name", "User"),
+            current_date=datetime.now().strftime("%B %d, %Y"),
+            current_day=datetime.now().strftime("%A")
+        )
+        messages = [{"role": "system", "content": sys_msg}]
+        messages.extend(inputs.get("history", []))
+        messages.append({"role": "user", "content": inputs.get("input", "")})
+        
+        # Use ainvoke to get the final state dict while still allowing astream_events to catch events
+        result = await agent.ainvoke({"messages": messages}, config)
+        return result["messages"][-1]
+        
+    from langchain_core.runnables import RunnableLambda
+    runnable_agent = RunnableLambda(agent_adapter)
     
     # Wrap the agent with memory
     return RunnableWithMessageHistory(
-        agent_executor,
+        runnable_agent,
         get_session_history,
         input_messages_key="input",
         history_messages_key="history",
@@ -84,9 +104,10 @@ async def generate_quiz_from_history(request: ChatRequest) -> Quiz:
     
     # Fetch history directly from SQLite
     history = get_session_history(request.session_id)
+    messages = await history.aget_messages()
     
     return await chain.ainvoke({
-        "history": history.messages,
+        "history": messages,
         "format_instructions": parser.get_format_instructions()
     })
 
@@ -96,8 +117,9 @@ async def generate_flashcards_from_history(request: ChatRequest) -> FlashcardDec
     chain = flashcard_prompt | llm | parser
     
     history = get_session_history(request.session_id)
+    messages = await history.aget_messages()
     
     return await chain.ainvoke({
-        "history": history.messages,
+        "history": messages,
         "format_instructions": parser.get_format_instructions()
     })

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Bot, User, Sparkles, Loader2, ChevronDown, BrainCircuit, Layers, Paperclip, FileText, Database } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -19,7 +19,9 @@ const ChatBox = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState(null);
   const messagesEndRef = useRef(null);
+  const scrollContainerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const scrollRafRef = useRef(null);
 
   const handleGenerateStructured = async (type) => {
     if (isLoading || messages.length === 0) return;
@@ -59,13 +61,23 @@ const ChatBox = () => {
     }
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const scrollToBottom = useCallback(() => {
+    if (scrollRafRef.current) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
+      if (isNearBottom) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }
+    });
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -202,7 +214,7 @@ const ChatBox = () => {
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row items-center justify-between w-full px-6 py-4 border-b border-dusty-grape/10 dark:border-white/5 bg-white/40 dark:bg-black/20 backdrop-blur-xl relative z-20 flex-shrink-0"
+        className="flex flex-col md:flex-row items-center justify-between w-full px-6 py-4 border-b border-dusty-grape/10 dark:border-white/5 bg-white/40 dark:bg-[#1a1b2e]/60 backdrop-blur-xl relative z-20 flex-shrink-0"
       >
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-space-indigo text-parchment rounded-xl shadow-lg shadow-space-indigo/20">
@@ -231,12 +243,12 @@ const ChatBox = () => {
           
           <div className="h-6 w-px bg-dusty-grape/20 dark:bg-white/10 mx-1"></div>
           
-          <input 
-            type="text" 
-            value={userName} 
-            onChange={(e) => setUserName(e.target.value)} 
+          <input
+            type="text"
+            value={userName}
+            onChange={(e) => setUserName(e.target.value)}
             placeholder="Your Name"
-            className="px-3 py-2 rounded-lg bg-white/80 dark:bg-white/5 border border-transparent hover:border-white/30 dark:hover:border-white/10 text-space-indigo dark:text-parchment focus:outline-none focus:ring-1 focus:ring-space-indigo w-32 placeholder-dusty-grape dark:placeholder-lilac-ash/60 transition-all font-medium hidden md:block"
+            className="px-3 py-2 rounded-lg bg-white/80 dark:bg-white/5 border border-dusty-grape/15 dark:border-white/10 hover:border-dusty-grape/30 dark:hover:border-white/15 text-space-indigo dark:text-parchment focus:outline-none focus:ring-1 focus:ring-space-indigo w-32 placeholder-dusty-grape dark:placeholder-lilac-ash/60 transition-all font-medium hidden md:block"
           />
           <div className="h-6 w-px bg-dusty-grape/20 dark:bg-white/10 mx-1 hidden md:block"></div>
           {/* Custom Dropdown */}
@@ -292,37 +304,28 @@ const ChatBox = () => {
       </motion.div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-h-0 relative z-10 w-full">
+      <div className="flex-1 flex flex-col min-h-0 z-10 w-full">
         {/* Messages Scroll Area */}
-        <div className="flex-1 overflow-y-auto scroll-smooth w-full">
-          <div className="max-w-4xl mx-auto p-6 md:p-8 space-y-8 pb-40">
-          <AnimatePresence>
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto w-full">
+          <div className="max-w-4xl mx-auto p-6 md:p-8 space-y-6 pb-6">
             {messages.length === 0 ? (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="h-full flex flex-col items-center justify-center text-dusty-grape/70 dark:text-lilac-ash/70 space-y-4"
-              >
+              <div className="min-h-[50vh] flex flex-col items-center justify-center text-dusty-grape/70 dark:text-lilac-ash/70 space-y-4">
                 <div className="w-16 h-16 rounded-full bg-parchment flex items-center justify-center mb-2">
                   <Bot className="w-8 h-8 text-space-indigo" />
                 </div>
                 <p className="text-xl font-display font-medium">Start a conversation</p>
                 <p className="text-sm">Try asking about a complex scientific concept</p>
-              </motion.div>
+              </div>
             ) : (
               messages.map((msg, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                  className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+                <div
+                  key={`${msg.role}-${idx}`}
+                  className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'} animate-[fadeIn_0.2s_ease-out]`}
                 >
                   {/* Avatar */}
                   <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center shadow-md ${
-                    msg.role === 'user' 
-                      ? 'bg-space-indigo text-parchment' 
+                    msg.role === 'user'
+                      ? 'bg-space-indigo text-parchment'
                       : 'bg-white text-space-indigo border border-parchment'
                   }`}>
                     {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
@@ -330,7 +333,7 @@ const ChatBox = () => {
 
                   {/* Message Bubble or Widget */}
                   {msg.type && msg.type !== 'loading' && msg.type !== 'error' ? (
-                    <div className="w-full">
+                    <div className="flex-1 min-w-0">
                       {msg.type === 'quiz' && <QuizWidget quizData={msg.data} />}
                       {msg.type === 'flashcards' && <FlashcardWidget deckData={msg.data} />}
                       {msg.type === 'document' && <DocumentWidget docData={msg.data} />}
@@ -339,7 +342,7 @@ const ChatBox = () => {
                     <div className={`max-w-[85%] px-6 py-4 rounded-3xl text-[15px] leading-relaxed shadow-sm ${
                       msg.role === 'user'
                         ? 'bg-space-indigo text-parchment rounded-tr-sm'
-                        : 'bg-white dark:bg-space-indigo/40 text-space-indigo dark:text-parchment rounded-tl-sm border border-parchment/60 dark:border-white/5'
+                        : 'bg-white dark:bg-white/[0.04] text-space-indigo dark:text-parchment rounded-tl-sm border border-parchment/60 dark:border-white/8'
                     }`}>
                       {msg.content === '' && isLoading && idx === messages.length - 1 ? (
                         <div className="flex flex-col gap-2">
@@ -354,11 +357,11 @@ const ChatBox = () => {
                           )}
                           <div className="flex items-center gap-2 h-6 text-dusty-grape/80 dark:text-lilac-ash/80 text-sm font-medium">
                             <span>Thinking</span>
-                            <div className="flex items-center gap-1 mt-1">
-                              <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50" />
-                              <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50" />
-                              <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50" />
-                            </div>
+                            <span className="inline-flex items-center gap-1 ml-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50 animate-[pulse_1s_ease-in-out_infinite]" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50 animate-[pulse_1s_ease-in-out_0.2s_infinite]" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50 animate-[pulse_1s_ease-in-out_0.4s_infinite]" />
+                            </span>
                           </div>
                         </div>
                       ) : msg.type === 'loading' ? (
@@ -380,43 +383,25 @@ const ChatBox = () => {
                       )}
                     </div>
                   )}
-                </motion.div>
+                </div>
               ))
             )}
-          </AnimatePresence>
           <div ref={messagesEndRef} />
           </div>
         </div>
         
-        {/* Input Area (Claude Style Floating Bottom) */}
-        <div className="w-full absolute bottom-0 left-0 bg-gradient-to-t from-parchment via-parchment/90 to-transparent dark:from-space-indigo dark:via-space-indigo/90 pointer-events-none pb-6 pt-24 z-20">
-          <div className="max-w-4xl mx-auto px-4 md:px-8 flex flex-col gap-3 pointer-events-auto">
-          {/* Action Buttons */}
-          <div className="flex gap-2 justify-center md:justify-start -mt-2">
-            <button
-              onClick={() => handleGenerateStructured('quiz')}
-              disabled={isLoading || messages.length === 0}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-space-indigo/5 dark:bg-white/5 border border-dusty-grape/10 dark:border-white/10 hover:bg-space-indigo/10 dark:hover:bg-white/10 text-space-indigo/80 dark:text-parchment/80 text-xs font-semibold transition-all disabled:opacity-50"
-            >
-              <BrainCircuit className="w-3.5 h-3.5" /> Generate Quiz
-            </button>
-            <button
-              onClick={() => handleGenerateStructured('flashcards')}
-              disabled={isLoading || messages.length === 0}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-space-indigo/5 dark:bg-white/5 border border-dusty-grape/10 dark:border-white/10 hover:bg-space-indigo/10 dark:hover:bg-white/10 text-space-indigo/80 dark:text-parchment/80 text-xs font-semibold transition-all disabled:opacity-50"
-            >
-              <Layers className="w-3.5 h-3.5" /> Generate Flashcards
-            </button>
-          </div>
+        {/* Input Area - Static Bottom */}
+        <div className="w-full border-t border-dusty-grape/10 dark:border-white/5 bg-white/60 dark:bg-[#1a1b2e]/80 backdrop-blur-xl px-4 md:px-8 py-4 z-20 flex-shrink-0">
+          <div className="max-w-4xl mx-auto flex flex-col gap-2.5">
 
           {/* Pending Attachment Chip */}
           <AnimatePresence>
             {pendingAttachment && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="flex items-center gap-3 bg-white/80 dark:bg-black/40 backdrop-blur-md border border-dusty-grape/20 dark:border-white/10 rounded-xl p-2.5 shadow-sm max-w-sm"
+                className="flex items-center gap-3 bg-white/80 dark:bg-white/5 backdrop-blur-md border border-dusty-grape/20 dark:border-white/10 rounded-xl p-2.5 shadow-sm max-w-sm"
               >
                 <div className="p-2 bg-space-indigo/10 dark:bg-white/10 rounded-lg text-space-indigo dark:text-parchment">
                   <FileText className="w-5 h-5" />
@@ -429,7 +414,7 @@ const ChatBox = () => {
                     {(pendingAttachment.metadata.character_count / 1000).toFixed(1)}k chars
                   </p>
                 </div>
-                <button 
+                <button
                   type="button"
                   onClick={() => setPendingAttachment(null)}
                   className="p-1.5 hover:bg-dusty-grape/10 dark:hover:bg-white/10 rounded-md text-dusty-grape dark:text-parchment/70 transition-colors"
@@ -452,7 +437,7 @@ const ChatBox = () => {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading || isUploading}
-              className="absolute left-3 p-2 text-dusty-grape/40 hover:text-space-indigo dark:text-parchment/30 dark:hover:text-parchment transition-colors z-10 disabled:opacity-50"
+              className="absolute left-3.5 p-2 text-dusty-grape/40 hover:text-space-indigo dark:text-parchment/30 dark:hover:text-parchment transition-colors z-10 disabled:opacity-50"
             >
               {isUploading ? <Loader2 className="w-5 h-5 animate-spin text-space-indigo dark:text-parchment" /> : <Paperclip className="w-5 h-5" />}
             </button>
@@ -462,17 +447,38 @@ const ChatBox = () => {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask anything or attach a document..."
               disabled={isLoading || isUploading}
-              className="w-full pl-12 pr-16 py-4 rounded-2xl border border-dusty-grape/20 dark:border-white/10 bg-white/50 dark:bg-black/40 backdrop-blur-sm text-space-indigo dark:text-parchment placeholder-dusty-grape/50 dark:placeholder-parchment/40 focus:outline-none focus:ring-2 focus:ring-space-indigo/30 dark:focus:ring-parchment/20 focus:border-transparent text-[15px] transition-all shadow-sm disabled:opacity-50"
+              className="w-full pl-12 pr-40 py-4 rounded-2xl border border-dusty-grape/15 dark:border-white/10 bg-white/70 dark:bg-white/5 backdrop-blur-sm text-space-indigo dark:text-parchment placeholder-dusty-grape/50 dark:placeholder-parchment/40 focus:outline-none focus:ring-2 focus:ring-space-indigo/20 dark:focus:ring-parchment/15 focus:border-transparent text-[15px] transition-all shadow-sm disabled:opacity-50"
             />
-            <button
-              type="submit"
-              disabled={isLoading || isUploading || (!input.trim() && !pendingAttachment)}
-              className="absolute right-2 p-2.5 bg-space-indigo dark:bg-parchment text-parchment dark:text-space-indigo rounded-xl hover:bg-space-indigo/90 dark:hover:bg-parchment/90 active:scale-95 focus:outline-none disabled:opacity-30 disabled:hover:scale-100 transition-all shadow-sm"
-            >
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 ml-0.5" />}
-            </button>
+            <div className="absolute right-2 flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleGenerateStructured('quiz')}
+                disabled={isLoading || messages.length === 0}
+                title="Generate Quiz"
+                className="p-2 rounded-lg text-dusty-grape/50 hover:text-space-indigo hover:bg-space-indigo/5 dark:text-parchment/40 dark:hover:text-parchment dark:hover:bg-white/5 transition-all disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <BrainCircuit className="w-4.5 h-4.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGenerateStructured('flashcards')}
+                disabled={isLoading || messages.length === 0}
+                title="Generate Flashcards"
+                className="p-2 rounded-lg text-dusty-grape/50 hover:text-space-indigo hover:bg-space-indigo/5 dark:text-parchment/40 dark:hover:text-parchment dark:hover:bg-white/5 transition-all disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <Layers className="w-4.5 h-4.5" />
+              </button>
+              <div className="w-px h-5 bg-dusty-grape/15 dark:bg-white/10"></div>
+              <button
+                type="submit"
+                disabled={isLoading || isUploading || (!input.trim() && !pendingAttachment)}
+                className="p-2.5 bg-space-indigo dark:bg-parchment text-parchment dark:text-space-indigo rounded-xl hover:bg-space-indigo/90 dark:hover:bg-parchment/90 active:scale-95 focus:outline-none disabled:opacity-30 disabled:hover:scale-100 transition-all shadow-sm"
+              >
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              </button>
+            </div>
           </form>
-          <p className="text-center text-[11px] text-dusty-grape/50 dark:text-parchment/40 font-medium">
+          <p className="text-center text-[11px] text-dusty-grape/40 dark:text-parchment/30 font-medium">
             Powered by LangChain & Gemini
           </p>
           </div>

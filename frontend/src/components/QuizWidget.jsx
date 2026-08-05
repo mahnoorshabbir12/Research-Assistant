@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, XCircle, BrainCircuit } from 'lucide-react';
 
@@ -45,7 +45,7 @@ const QuizWidget = ({ quizData }) => {
   }
 
   return (
-    <div className="bg-white dark:bg-[#2c2d44] border border-dusty-grape/10 dark:border-white/10 rounded-2xl p-6 shadow-lg my-4 max-w-2xl w-full mx-auto">
+    <div className="bg-white dark:bg-[#2c2d44] border border-dusty-grape/10 dark:border-white/10 rounded-2xl p-6 shadow-lg my-2 w-full">
       <div className="flex justify-between items-center mb-6 border-b border-dusty-grape/10 dark:border-white/5 pb-4">
         <h3 className="text-xl font-bold font-display text-space-indigo dark:text-parchment flex items-center gap-2">
           <BrainCircuit className="w-5 h-5 text-dusty-grape dark:text-lilac-ash" />

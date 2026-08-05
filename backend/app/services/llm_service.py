@@ -30,15 +30,19 @@ def get_llm(temperature: float = 0.7):
         max_tokens=4096
     )
 
+from langchain.agents import create_tool_calling_agent, AgentExecutor
+from app.services.tools import AVAILABLE_TOOLS
+
 def get_chat_chain(persona: str, temperature: float = 0.7):
     llm = get_llm(temperature=temperature)
     prompt = get_prompt_for_persona(persona)
     
-    chain = prompt | llm | StrOutputParser()
+    agent = create_tool_calling_agent(llm, AVAILABLE_TOOLS, prompt)
+    agent_executor = AgentExecutor(agent=agent, tools=AVAILABLE_TOOLS, verbose=True)
     
-    # Wrap the chain with memory
+    # Wrap the agent with memory
     return RunnableWithMessageHistory(
-        chain,
+        agent_executor,
         get_session_history,
         input_messages_key="input",
         history_messages_key="history",
@@ -47,30 +51,21 @@ def get_chat_chain(persona: str, temperature: float = 0.7):
 async def generate_chat_stream(request: ChatRequest) -> AsyncGenerator[str, None]:
     chain = get_chat_chain(persona=request.persona, temperature=request.temperature)
     
-    context_str = ""
     # Filter out non-user messages to find the actual query from the payload
-    # Note: frontend still sends history but backend only uses the LAST message and relies on SQLite memory.
     user_messages = [msg for msg in request.messages if msg.role == "user" and not msg.type]
     latest_query = user_messages[-1].content if user_messages else ""
     
     if latest_query:
-        try:
-            kb_results = search_knowledge_base(query=latest_query, top_k=3)
-            if kb_results:
-                context_str = "--- KNOWLEDGE BASE CONTEXT ---\n"
-                for i, res in enumerate(kb_results):
-                    filename = res["metadata"].get("filename", "Unknown Document")
-                    context_str += f"[{filename} (Chunk {i+1})]:\n{res['content']}\n\n"
-                context_str += "------------------------------\n"
-        except Exception as e:
-            print(f"Failed to search KB: {e}")
-            pass
-    
-    async for chunk in chain.astream(
-        {"input": latest_query, "user_name": request.user_name, "context": context_str},
-        config={"configurable": {"session_id": request.session_id}}
-    ):
-        yield chunk
+        async for event in chain.astream_events(
+            {"input": latest_query, "user_name": request.user_name, "context": ""},
+            config={"configurable": {"session_id": request.session_id}},
+            version="v2"
+        ):
+            kind = event["event"]
+            if kind == "on_chat_model_stream":
+                content = event["data"]["chunk"].content
+                if content:
+                    yield content
 
 async def generate_quiz_from_history(request: ChatRequest) -> Quiz:
     llm = get_llm(temperature=0.3)

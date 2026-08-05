@@ -317,10 +317,13 @@ const ChatBox = () => {
                         : 'bg-white dark:bg-space-indigo/40 text-space-indigo dark:text-parchment rounded-tl-sm border border-parchment/60 dark:border-white/5'
                     }`}>
                       {msg.content === '' && isLoading && idx === messages.length - 1 ? (
-                        <div className="flex items-center gap-1.5 h-6">
-                          <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 rounded-full bg-dusty-grape/50" />
-                          <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 rounded-full bg-dusty-grape/50" />
-                          <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 rounded-full bg-dusty-grape/50" />
+                        <div className="flex items-center gap-2 h-6 text-dusty-grape/80 dark:text-lilac-ash/80 text-sm font-medium">
+                          <span>Thinking</span>
+                          <div className="flex items-center gap-1 mt-1">
+                            <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50" />
+                            <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50" />
+                            <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50" />
+                          </div>
                         </div>
                       ) : msg.type === 'loading' ? (
                         <div className="flex items-center gap-3 h-6 text-dusty-grape dark:text-lilac-ash font-medium">

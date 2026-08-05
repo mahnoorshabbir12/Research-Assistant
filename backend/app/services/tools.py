@@ -1,0 +1,56 @@
+from datetime import datetime
+from langchain_core.tools import tool
+from duckduckgo_search import DDGS
+from app.services.embedding_service import search_knowledge_base
+
+@tool
+def calculate(expression: str) -> str:
+    """Evaluates a mathematical expression safely. Use this when the user asks you to perform math. Provide the expression as a string like '2 + 2' or '100 / 5'."""
+    try:
+        # Note: eval is used for simplicity here in a local dev environment.
+        # In production, use ast.literal_eval or a safe math parser.
+        allowed_chars = "0123456789+-*/(). "
+        if not all(c in allowed_chars for c in expression):
+            return "Error: Invalid characters in expression."
+        return str(eval(expression))
+    except Exception as e:
+        return f"Error: {e}"
+
+@tool
+def get_current_time() -> str:
+    """Returns the current date and time. Use this when the user asks for the time, date, or day of the week."""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+@tool
+def search_web(query: str) -> str:
+    """Searches the live internet for information. Use this when the user asks about recent events, news, or general knowledge not found in their documents."""
+    try:
+        results = DDGS().text(query, max_results=3)
+        if not results:
+            return "No web results found."
+        
+        formatted = "--- WEB RESULTS ---\n"
+        for i, res in enumerate(results):
+            formatted += f"[{i+1}]: {res['title']}\n{res['body']}\n\n"
+        return formatted
+    except Exception as e:
+        return f"Error searching the web: {e}"
+
+@tool
+def search_documents(query: str) -> str:
+    """Searches the user's uploaded knowledge base documents. Use this when the user asks a specific question about their research, notes, or uploaded files."""
+    try:
+        kb_results = search_knowledge_base(query=query, top_k=3)
+        if not kb_results:
+            return "No relevant documents found in the Knowledge Base."
+            
+        context_str = "--- KNOWLEDGE BASE CONTEXT ---\n"
+        for i, res in enumerate(kb_results):
+            filename = res["metadata"].get("filename", "Unknown Document")
+            context_str += f"[{filename} (Chunk {i+1})]:\n{res['content']}\n\n"
+        return context_str
+    except Exception as e:
+        return f"Error searching documents: {e}"
+
+# List of all available tools
+AVAILABLE_TOOLS = [calculate, get_current_time, search_web, search_documents]

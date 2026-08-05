@@ -25,7 +25,8 @@ If you don't know the answer, admit it rather than hallucinating. Prioritize ana
 researcher_prompt = ChatPromptTemplate.from_messages([
     SystemMessagePromptTemplate.from_template(researcher_system_prompt),
     MessagesPlaceholder(variable_name="history"),
-    HumanMessagePromptTemplate.from_template("{input}")
+    HumanMessagePromptTemplate.from_template("{input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad")
 ]).partial(current_date=get_current_date, current_day=get_current_day)
 
 # ==========================================
@@ -43,7 +44,8 @@ If you use the provided Knowledge Base Context, mention the filename casually (e
 summarizer_prompt = ChatPromptTemplate.from_messages([
     SystemMessagePromptTemplate.from_template(summarizer_system_prompt),
     MessagesPlaceholder(variable_name="history"),
-    HumanMessagePromptTemplate.from_template("{input}")
+    HumanMessagePromptTemplate.from_template("{input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad")
 ]).partial(current_date=get_current_date, current_day=get_current_day)
 
 # ==========================================
@@ -70,7 +72,8 @@ tutor_prompt = ChatPromptTemplate.from_messages([
     AIMessage(content="Exactly! So if they use water and sunlight, what do you think they are 'synthesizing' or making out of those ingredients?"),
     # The actual conversation history placeholder
     MessagesPlaceholder(variable_name="history"),
-    HumanMessagePromptTemplate.from_template("{input}")
+    HumanMessagePromptTemplate.from_template("{input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad")
 ]).partial(current_date=get_current_date, current_day=get_current_day)
 
 # ==========================================

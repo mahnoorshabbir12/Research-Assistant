@@ -15,6 +15,8 @@ from app.models.chat import ChatRequest
 from app.models.structured import Quiz, FlashcardDeck
 from app.services.prompts import get_prompt_for_persona, quiz_prompt, flashcard_prompt
 from app.services.embedding_service import search_knowledge_base
+from langchain.agents import create_tool_calling_agent, AgentExecutor
+from app.services.tools import AVAILABLE_TOOLS
 
 DB_URI = f"sqlite:///{os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'memory.db')}"
 
@@ -30,9 +32,6 @@ def get_llm(temperature: float = 0.7):
         streaming=True,
         max_tokens=4096
     )
-
-from langchain.agents import create_tool_calling_agent, AgentExecutor
-from app.services.tools import AVAILABLE_TOOLS
 
 def get_chat_chain(persona: str, temperature: float = 0.7):
     llm = get_llm(temperature=temperature)

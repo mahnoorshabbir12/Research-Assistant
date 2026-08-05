@@ -1,4 +1,5 @@
 import os
+import json
 from typing import AsyncGenerator
 from dotenv import load_dotenv
 
@@ -65,7 +66,17 @@ async def generate_chat_stream(request: ChatRequest) -> AsyncGenerator[str, None
             if kind == "on_chat_model_stream":
                 content = event["data"]["chunk"].content
                 if content:
-                    yield content
+                    yield f"data: {json.dumps({'type': 'content', 'data': content})}\n\n"
+            elif kind == "on_tool_start":
+                tool_name = event["name"]
+                yield f"data: {json.dumps({'type': 'log', 'data': f'Starting {tool_name}...'})}\n\n"
+            elif kind == "on_tool_end":
+                tool_name = event["name"]
+                yield f"data: {json.dumps({'type': 'log', 'data': f'Finished {tool_name}'})}\n\n"
+            elif kind == "on_chat_model_end":
+                usage = event["data"].get("output", {}).response_metadata.get("token_usage")
+                if usage:
+                    yield f"data: {json.dumps({'type': 'usage', 'data': usage})}\n\n"
 
 async def generate_quiz_from_history(request: ChatRequest) -> Quiz:
     llm = get_llm(temperature=0.3)

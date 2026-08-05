@@ -1,7 +1,8 @@
 from datetime import datetime
+from typing import Optional
 from langchain_core.tools import tool
 from duckduckgo_search import DDGS
-from app.services.embedding_service import search_knowledge_base
+from app.services.embedding_service import search_knowledge_base, list_knowledge_base_documents
 
 @tool
 def calculate(expression: str) -> str:
@@ -37,20 +38,32 @@ def search_web(query: str) -> str:
         return f"Error searching the web: {e}"
 
 @tool
-def search_documents(query: str) -> str:
-    """Searches the user's uploaded knowledge base documents. Use this when the user asks a specific question about their research, notes, or uploaded files."""
+def list_documents() -> str:
+    """Lists all the document filenames currently available in the user's uploaded Knowledge Base. Use this to see what files you can search and compare."""
     try:
-        kb_results = search_knowledge_base(query=query, top_k=3)
+        filenames = list_knowledge_base_documents()
+        if not filenames:
+            return "No documents found in the Knowledge Base."
+        return "Available Documents:\n- " + "\n- ".join(filenames)
+    except Exception as e:
+        return f"Error listing documents: {e}"
+
+@tool
+def search_documents(query: str, filename: Optional[str] = None) -> str:
+    """Searches the user's uploaded knowledge base documents. Use this when the user asks a specific question about their research, notes, or uploaded files. Provide an optional 'filename' to restrict the search to a specific document."""
+    try:
+        filter_meta = {"filename": filename} if filename else None
+        kb_results = search_knowledge_base(query=query, top_k=3, filter_metadata=filter_meta)
         if not kb_results:
-            return "No relevant documents found in the Knowledge Base."
+            return f"No relevant documents found in the Knowledge Base for query '{query}'" + (f" in {filename}." if filename else ".")
             
         context_str = "--- KNOWLEDGE BASE CONTEXT ---\n"
         for i, res in enumerate(kb_results):
-            filename = res["metadata"].get("filename", "Unknown Document")
-            context_str += f"[{filename} (Chunk {i+1})]:\n{res['content']}\n\n"
+            doc_name = res["metadata"].get("filename", "Unknown Document")
+            context_str += f"[{doc_name} (Chunk {i+1})]:\n{res['content']}\n\n"
         return context_str
     except Exception as e:
         return f"Error searching documents: {e}"
 
 # List of all available tools
-AVAILABLE_TOOLS = [calculate, get_current_time, search_web, search_documents]
+AVAILABLE_TOOLS = [calculate, get_current_time, search_web, list_documents, search_documents]

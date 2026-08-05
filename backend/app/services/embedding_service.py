@@ -123,3 +123,23 @@ def search_knowledge_base(query: str, top_k: int = 5, filter_metadata: Optional[
             })
             
     return similar_chunks
+
+def list_knowledge_base_documents() -> List[str]:
+    """
+    Returns a unique list of filenames currently stored in the knowledge base.
+    """
+    try:
+        # ChromaDB get() returns all documents. We just need the unique filenames from metadata.
+        results = kb_collection.get(include=["metadatas"])
+        if not results or not results['metadatas']:
+            return []
+            
+        filenames = set()
+        for meta in results['metadatas']:
+            if meta and "filename" in meta:
+                filenames.add(meta["filename"])
+                
+        return sorted(list(filenames))
+    except Exception as e:
+        print(f"Error listing documents: {e}")
+        return []

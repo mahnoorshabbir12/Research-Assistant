@@ -106,22 +106,47 @@ const ChatBox = () => {
       const reader = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
       
+      let buffer = '';
       let done = false;
       while (!done) {
         const { value, done: readerDone } = await reader.read();
         done = readerDone;
         if (value) {
-          const chunk = decoder.decode(value, { stream: true });
-          setMessages((prev) => {
-            const lastMessage = prev[prev.length - 1];
-            if (lastMessage.role === 'assistant') {
-              return [
-                ...prev.slice(0, -1),
-                { ...lastMessage, content: lastMessage.content + chunk }
-              ];
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop(); // Keep the last incomplete line in the buffer
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const payload = JSON.parse(line.slice(6));
+                setMessages((prev) => {
+                  const lastMessage = prev[prev.length - 1];
+                  if (lastMessage.role === 'assistant') {
+                    if (payload.type === 'content') {
+                      return [
+                        ...prev.slice(0, -1),
+                        { ...lastMessage, content: lastMessage.content + payload.data }
+                      ];
+                    } else if (payload.type === 'log') {
+                      return [
+                        ...prev.slice(0, -1),
+                        { ...lastMessage, logs: [...(lastMessage.logs || []), payload.data] }
+                      ];
+                    } else if (payload.type === 'usage') {
+                      return [
+                        ...prev.slice(0, -1),
+                        { ...lastMessage, usage: payload.data }
+                      ];
+                    }
+                  }
+                  return prev;
+                });
+              } catch (e) {
+                console.error("Failed to parse SSE", e);
+              }
             }
-            return prev;
-          });
+          }
         }
       }
     } catch (error) {
@@ -317,12 +342,23 @@ const ChatBox = () => {
                         : 'bg-white dark:bg-space-indigo/40 text-space-indigo dark:text-parchment rounded-tl-sm border border-parchment/60 dark:border-white/5'
                     }`}>
                       {msg.content === '' && isLoading && idx === messages.length - 1 ? (
-                        <div className="flex items-center gap-2 h-6 text-dusty-grape/80 dark:text-lilac-ash/80 text-sm font-medium">
-                          <span>Thinking</span>
-                          <div className="flex items-center gap-1 mt-1">
-                            <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50" />
-                            <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50" />
-                            <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50" />
+                        <div className="flex flex-col gap-2">
+                          {msg.logs && msg.logs.length > 0 && (
+                            <div className="flex flex-col gap-1 text-xs text-dusty-grape/70 dark:text-lilac-ash/70 font-mono mb-2">
+                              {msg.logs.map((log, i) => (
+                                <span key={i} className="flex items-center gap-1.5">
+                                  <Bot className="w-3 h-3" /> {log}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2 h-6 text-dusty-grape/80 dark:text-lilac-ash/80 text-sm font-medium">
+                            <span>Thinking</span>
+                            <div className="flex items-center gap-1 mt-1">
+                              <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50" />
+                              <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50" />
+                              <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1.5 h-1.5 rounded-full bg-dusty-grape/50" />
+                            </div>
                           </div>
                         </div>
                       ) : msg.type === 'loading' ? (
@@ -331,8 +367,15 @@ const ChatBox = () => {
                           {msg.content}
                         </div>
                       ) : (
-                        <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-space-indigo/5 dark:prose-pre:bg-white/5">
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        <div className="flex flex-col gap-2">
+                          <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-space-indigo/5 dark:prose-pre:bg-white/5">
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          </div>
+                          {msg.usage && !isLoading && (
+                            <div className="self-end mt-2 px-2 py-0.5 rounded-full bg-space-indigo/5 dark:bg-white/5 border border-dusty-grape/10 dark:border-white/10 text-[10px] font-mono text-dusty-grape/60 dark:text-lilac-ash/60">
+                              {msg.usage.total_tokens} tokens
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

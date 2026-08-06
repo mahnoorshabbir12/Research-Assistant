@@ -9,12 +9,14 @@ def calculate(expression: str) -> str:
     """Evaluates a mathematical expression safely. Use this when the user asks you to perform math.
     CRITICAL: You MUST pass the user's expression EXACTLY as they wrote it. Do NOT rewrite, factor, simplify, or reinterpret the expression in any way. For example, if the user writes '33*67', pass '33*67' — not '3*3*67' or any other equivalent form."""
     try:
-        # Note: eval is used for simplicity here in a local dev environment.
-        # In production, use ast.literal_eval or a safe math parser.
-        allowed_chars = "0123456789+-*/(). "
+        allowed_chars = "0123456789+-*/(). %^"
         if not all(c in allowed_chars for c in expression):
             return "Error: Invalid characters in expression."
-        return str(eval(expression))
+        safe_expr = expression.replace("^", "**")
+        result = eval(safe_expr)
+        if isinstance(result, float) and result == int(result):
+            result = int(result)
+        return str(result)
     except Exception as e:
         return f"Error: {e}"
 

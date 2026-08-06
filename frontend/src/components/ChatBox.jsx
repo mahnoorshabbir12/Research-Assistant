@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, Sparkles, Loader2, ChevronDown, BrainCircuit, Layers, Paperclip, FileText, Database, Clock, MessageSquare, Plus } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Loader2, ChevronDown, BrainCircuit, Layers, Paperclip, FileText, Database, Clock, MessageSquare, Plus, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
+import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import QuizWidget from './QuizWidget';
@@ -22,11 +23,14 @@ const ChatBox = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState(null);
   const [sessions, setSessions] = useState([]);
+  const [copiedIdx, setCopiedIdx] = useState(null);
   
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
   const scrollRafRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
   // Load sessions on mount
   useEffect(() => {
@@ -112,6 +116,12 @@ const ChatBox = () => {
     }
   };
 
+  const handleCopy = (text, idx) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 2000);
+  };
+
   const scrollToBottom = useCallback(() => {
     if (scrollRafRef.current) return;
     scrollRafRef.current = requestAnimationFrame(() => {
@@ -133,7 +143,12 @@ const ChatBox = () => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!input.trim() && !pendingAttachment) return;
-    if (isLoading) return;
+
+    // Abort any ongoing stream
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
 
     const newMessages = [...messages];
     
@@ -148,10 +163,14 @@ const ChatBox = () => {
     
     setMessages(newMessages);
     setInput('');
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
     setIsLoading(true);
 
     try {
       setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
       const response = await fetch('http://localhost:8000/api/chat', {
         method: 'POST',
@@ -163,6 +182,7 @@ const ChatBox = () => {
           persona: persona,
           user_name: userName,
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok) throw new Error('Network response was not ok');
@@ -214,12 +234,14 @@ const ChatBox = () => {
         }
       }
     } catch (error) {
+      if (error.name === 'AbortError') return;
       console.error('Error:', error);
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: 'Connection failed. Please ensure the backend is running.' },
       ]);
     } finally {
+      abortControllerRef.current = null;
       setIsLoading(false);
     }
   };
@@ -427,11 +449,24 @@ const ChatBox = () => {
                       {msg.type === 'document' && <DocumentWidget docData={msg.data} />}
                     </div>
                   ) : (
-                    <div className={`max-w-[85%] px-6 py-4 rounded-3xl text-[15px] leading-relaxed shadow-sm ${
+                    <div className={`relative group/msg max-w-[85%] px-6 py-4 rounded-3xl text-[15px] leading-relaxed shadow-sm ${
                       msg.role === 'user'
                         ? 'bg-space-indigo text-parchment rounded-tr-sm'
                         : 'bg-white dark:bg-white/[0.04] text-space-indigo dark:text-parchment rounded-tl-sm border border-parchment/60 dark:border-white/8'
                     }`}>
+                      {msg.content && !msg.type && (
+                        <button
+                          onClick={() => handleCopy(msg.content, idx)}
+                          className={`absolute top-2 ${msg.role === 'user' ? 'left-2' : 'right-2'} p-1.5 rounded-lg opacity-0 group-hover/msg:opacity-100 transition-opacity ${
+                            msg.role === 'user'
+                              ? 'hover:bg-white/10 text-parchment/70 hover:text-parchment'
+                              : 'hover:bg-space-indigo/5 dark:hover:bg-white/10 text-dusty-grape/50 hover:text-space-indigo dark:text-parchment/50 dark:hover:text-parchment'
+                          }`}
+                          title="Copy message"
+                        >
+                          {copiedIdx === idx ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
                       {msg.content === '' && isLoading && idx === messages.length - 1 ? (
                         <div className="flex flex-col gap-2">
                           {msg.logs && msg.logs.length > 0 && (
@@ -460,7 +495,7 @@ const ChatBox = () => {
                       ) : (
                         <div className="flex flex-col gap-2">
                           <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-space-indigo/5 dark:prose-pre:bg-white/5">
-                            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
                               {msg.content?.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$').replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$')}
                             </ReactMarkdown>
                           </div>
@@ -515,7 +550,7 @@ const ChatBox = () => {
             )}
           </AnimatePresence>
 
-          <form onSubmit={handleSendMessage} className="relative flex items-center group">
+          <form onSubmit={handleSendMessage} className="relative flex items-end group">
             <input
               type="file"
               ref={fileInputRef}
@@ -527,19 +562,33 @@ const ChatBox = () => {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading || isUploading}
-              className="absolute left-3.5 p-2 text-dusty-grape/40 hover:text-space-indigo dark:text-parchment/30 dark:hover:text-parchment transition-colors z-10 disabled:opacity-50"
+              className="absolute left-3.5 bottom-3.5 p-2 text-dusty-grape/40 hover:text-space-indigo dark:text-parchment/30 dark:hover:text-parchment transition-colors z-10 disabled:opacity-50"
             >
               {isUploading ? <Loader2 className="w-5 h-5 animate-spin text-space-indigo dark:text-parchment" /> : <Paperclip className="w-5 h-5" />}
             </button>
-            <input
-              type="text"
+            <textarea
+              ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask anything or attach a document..."
-              disabled={isLoading || isUploading}
-              className="w-full pl-12 pr-40 py-4 rounded-2xl border border-dusty-grape/15 dark:border-white/10 bg-white/70 dark:bg-white/5 backdrop-blur-sm text-space-indigo dark:text-parchment placeholder-dusty-grape/50 dark:placeholder-parchment/40 focus:outline-none focus:ring-2 focus:ring-space-indigo/20 dark:focus:ring-parchment/15 focus:border-transparent text-[15px] transition-all shadow-sm disabled:opacity-50"
+              onChange={(e) => {
+                setInput(e.target.value);
+                e.target.style.height = 'auto';
+                e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (!isLoading && !isUploading) {
+                    handleSendMessage(e);
+                  }
+                }
+              }}
+              placeholder="Ask anything or attach a document... (Shift+Enter for new line)"
+              disabled={isUploading}
+              rows={1}
+              style={{ height: 'auto' }}
+              className="w-full pl-12 pr-40 py-4 rounded-2xl border border-dusty-grape/15 dark:border-white/10 bg-white/70 dark:bg-white/5 backdrop-blur-sm text-space-indigo dark:text-parchment placeholder-dusty-grape/50 dark:placeholder-parchment/40 focus:outline-none focus:ring-2 focus:ring-space-indigo/20 dark:focus:ring-parchment/15 focus:border-transparent text-[15px] leading-[1.4] transition-all shadow-sm disabled:opacity-50 resize-none overflow-hidden"
             />
-            <div className="absolute right-2 flex items-center gap-1.5">
+            <div className="absolute right-2 bottom-2.5 flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => handleGenerateStructured('quiz')}

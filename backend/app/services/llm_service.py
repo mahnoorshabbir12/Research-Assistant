@@ -79,7 +79,8 @@ def get_chat_chain(persona: str, temperature: float = 0.7):
         sys_msg = sys_template.format(
             user_name=inputs.get("user_name", "User"),
             current_date=datetime.now().strftime("%B %d, %Y"),
-            current_day=datetime.now().strftime("%A")
+            current_day=datetime.now().strftime("%A"),
+            context=inputs.get("context", "")
         )
         
         messages = [{"role": "system", "content": sys_msg}]

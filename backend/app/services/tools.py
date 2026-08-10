@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 from langchain_core.tools import tool
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from app.services.embedding_service import search_knowledge_base, list_knowledge_base_documents
 
 @tool

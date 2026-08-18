@@ -66,10 +66,10 @@ def find_similar_chunks(collection_name: str, query: str, top_k: int = 3) -> Lis
             })
     return similar_chunks
 
-def ingest_to_knowledge_base(chunks: List[str], metadata: Dict[str, Any]) -> int:
+def ingest_to_knowledge_base(chunks: List[str], metadata: Dict[str, Any], chunk_metadatas: Optional[List[Dict[str, Any]]] = None) -> int:
     """
     Ingest document chunks into the persistent knowledge base.
-    Each chunk gets the document's metadata (e.g. filename).
+    Each chunk gets the document's metadata (e.g. filename) plus its own chunk metadata.
     """
     embedded_vectors = embeddings.embed_documents(chunks)
     
@@ -77,11 +77,13 @@ def ingest_to_knowledge_base(chunks: List[str], metadata: Dict[str, Any]) -> int
     doc_id = uuid.uuid4().hex
     ids = [f"{doc_id}_{i}" for i in range(len(chunks))]
     
-    # Attach chunk index to metadata
+    # Attach chunk index and individual chunk metadata to global metadata
     metadatas = []
     for i in range(len(chunks)):
         chunk_meta = metadata.copy()
         chunk_meta["chunk_index"] = i
+        if chunk_metadatas and i < len(chunk_metadatas):
+            chunk_meta.update(chunk_metadatas[i])
         metadatas.append(chunk_meta)
         
     kb_collection.add(

@@ -13,3 +13,6 @@ tiktoken
 sentence-transformers
 langchain-huggingface
 ddgs
+unstructured[pdf]
+markdownify
+unstructured-inference

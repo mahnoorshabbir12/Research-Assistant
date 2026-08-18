@@ -89,6 +89,7 @@ async def chunk_document_endpoint(request: ChunkRequest):
     try:
         result = chunk_document(
             text=request.text,
+            elements=request.elements,
             chunk_size=request.chunk_size,
             chunk_overlap=request.chunk_overlap,
             strategy=request.strategy
@@ -122,6 +123,7 @@ async def kb_ingest_endpoint(request: IngestRequest):
     try:
         num_chunks = ingest_to_knowledge_base(
             chunks=request.chunks,
+            chunk_metadatas=request.chunk_metadatas,
             metadata=request.metadata
         )
         return {"message": "Success", "chunks_added": num_chunks}

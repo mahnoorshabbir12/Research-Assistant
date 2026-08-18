@@ -11,6 +11,7 @@ class SimilarityRequest(BaseModel):
 
 class IngestRequest(BaseModel):
     chunks: List[str]
+    chunk_metadatas: Optional[List[Dict[str, Any]]] = None
     metadata: Dict[str, Any]
 
 class KnowledgeSearchRequest(BaseModel):

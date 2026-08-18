@@ -275,6 +275,7 @@ const ChatBox = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: data.content,
+          elements: data.elements,
           chunk_size: 1000,
           chunk_overlap: 200,
           strategy: 'recursive'
@@ -290,6 +291,7 @@ const ChatBox = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           chunks: chunkData.chunks,
+          chunk_metadatas: chunkData.chunk_objects ? chunkData.chunk_objects.map(c => c.metadata) : null,
           metadata: data.metadata
         })
       });

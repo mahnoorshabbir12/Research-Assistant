@@ -16,3 +16,5 @@ ddgs
 unstructured[pdf]
 markdownify
 unstructured-inference
+rank_bm25
+langchain-chroma

@@ -1,0 +1,17 @@
+[
+  {
+    "question": "What is OCR?",
+    "ground_truth": "Optical Character Recognition (OCR) is the process that converts an image of text into a machine-readable text format. For example, if you scan a form or a receipt, your computer saves the scan as an image file. You cannot use a text editor to edit, search, or count the words in the image file. However, you can use OCR to convert the image into a text document with its contents stored as text data.",
+    "expected_context": ["Optical Character Recognition (OCR) is the process that converts an image of text into a machine-readable text format."]
+  },
+  {
+    "question": "Why is Hybrid Search better than dense vector search alone?",
+    "ground_truth": "Hybrid search combines the semantic understanding of dense vector search with the exact keyword matching capabilities of sparse search (like BM25). Dense vector search represents text as numerical vectors to find conceptually similar documents, but it struggles with exact keywords, acronyms, and specific IDs because they get mapped into broad semantic spaces. BM25 catches those exact text matches instantly. By combining both using Reciprocal Rank Fusion, the system achieves higher recall for both conceptual queries and exact keyword lookups.",
+    "expected_context": ["Hybrid search combines the semantic understanding of dense vector search with the exact keyword matching capabilities of sparse search"]
+  },
+  {
+    "question": "How does Reciprocal Rank Fusion work?",
+    "ground_truth": "Reciprocal Rank Fusion (RRF) is a mathematical method for combining multiple ranked lists of documents into a single ranked list without needing calibrated scores from the original search engines. It calculates a score for each document based on its rank position across all lists using the formula 1 / (Rank + K), where K is a constant (typically 60). This allows systems to merge results from completely different scoring scales, such as BM25 (which outputs scores in the thousands) and ChromaDB (which outputs cosine distances between 0 and 2).",
+    "expected_context": ["The formula is 1 / (Rank + K).", "RRF solves this by looking only at the rank position of the document in each respective list."]
+  }
+]
